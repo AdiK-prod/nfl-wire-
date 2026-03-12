@@ -1,0 +1,101 @@
+# NFL Wire — Cursor AI Rules
+# These rules are injected into every Cursor AI request automatically.
+# Do not remove or modify section headers — Task Master depends on them.
+
+## Project Overview
+NFL Wire is a daily NFL team newsletter app supporting all 32 teams.
+First active team: Seattle Seahawks.
+Core philosophy: deliver a 5-minute morning briefing to the Commuter Fan persona.
+
+## Tech Stack (Do Not Suggest Alternatives)
+- Frontend: React + Vite + Tailwind CSS
+- Backend: Supabase (PostgreSQL, Edge Functions, Auth)
+- Deployment: Vercel
+- Email: Resend (transactional email — do NOT suggest SendGrid, Mailgun, or nodemailer)
+- AI Layer: Anthropic Claude API (claude-haiku-4-5-20251001 for summarization and relevance checks)
+- Task Management: Task Master AI (MCP)
+
+## File Structure
+- src/components/        → React UI components
+- src/pages/             → Page-level components (subscriber-facing)
+- src/admin/             → Admin dashboard pages (protected)
+- src/lib/               → Shared utilities, API clients, helpers
+- src/hooks/             → Custom React hooks
+- supabase/functions/    → Supabase Edge Functions
+- supabase/migrations/   → SQL migration files
+- .taskmaster/docs/      → PRD and project documentation
+- .taskmaster/tasks/     → Task Master generated task files
+
+## Code Style
+- TypeScript for all files — never use plain JavaScript
+- Strict mode enabled — no `any` types, use `unknown` or define explicit types
+- Functional components only — no class components
+- Named exports only — no default exports except for page components
+- Always use async/await — never use .then() chains
+- All async functions must have try/catch error handling
+- Use 2 spaces for indentation
+- Use double quotes for strings
+
+## Naming Conventions
+- Components: PascalCase (e.g. NewsletterPreview.tsx)
+- Hooks: camelCase prefixed with "use" (e.g. useSubscriber.ts)
+- Supabase Edge Functions: kebab-case (e.g. validate-source.ts)
+- Database tables: snake_case (e.g. newsletter_metrics)
+- Environment variables: SCREAMING_SNAKE_CASE
+
+## Architecture Rules
+- All Supabase queries go in src/lib/supabase/ — never inline in components
+- All Anthropic API calls go in src/lib/ai/ — never call the API directly from components
+- All Resend email calls go in supabase/functions/ — never from frontend
+- Team-specific logic must always reference team_id — never hardcode a team name
+- Global sources have team_id = null — always handle this case in queries
+
+## Multi-Team Rules (Critical)
+- Every query touching articles, sources, or newsletters MUST filter by team_id
+- The pipeline iterates ALL active teams — never write single-team-only logic
+- team_id is the single source of truth for all team-specific behavior
+- Team colors, names, and slugs always come from the teams table — never hardcoded
+
+## Supabase Edge Functions
+- One function per concern: validate-source, run-content-pipeline, assemble-and-send
+- Always handle errors gracefully — one team's failure must not crash the pipeline
+- Log every significant operation with timestamp and team_id
+- Use Supabase service role key for Edge Functions — never the anon key
+
+## Anthropic API Usage
+- Model: claude-haiku-4-5-20251001 for all summarization and relevance checks
+- Always request JSON-only responses when parsing structured data
+- Strip markdown backticks before parsing JSON responses
+- Max tokens: 500 for summaries, 100 for relevance checks
+- Always wrap API calls in try/catch — never let API failures crash the pipeline
+
+## Email Template Rules
+- Mobile-first — optimized for iOS Mail, Gmail, and Outlook
+- Team primary_color and secondary_color always come from the teams table
+- Four sections always present: Top Story, Quick Hits, Injury Report, Stat of the Day
+- Footer always includes: 👍/👎 feedback, unsubscribe link, submit-a-source link
+- Never inline styles that override team color variables
+
+## Security Rules
+- Never expose Anthropic API key to the frontend
+- Never expose Supabase service role key to the frontend
+- Admin routes (/admin/*) always require Supabase Auth with admin role check
+- Always use parameterized queries — never string concatenation in SQL
+- Sanitize all user-submitted source URLs before processing
+
+## Task Master Workflow
+- Before starting any task, run: task-master next
+- After completing a task, update status: task-master set-status --id=X --status=done
+- If a task is too complex, expand it: task-master expand --id=X
+- Never skip tasks or work out of dependency order
+- If requirements change, update tasks: task-master update --from=X --prompt="change description"
+
+## Forbidden Patterns
+- NO hardcoded team names, colors, or slugs anywhere in code
+- NO direct fetch() calls to Anthropic API from React components
+- NO .then() promise chains — always async/await
+- NO var declarations — always const or let
+- NO any TypeScript type — define proper types
+- NO inline SQL strings — use Supabase query builder
+- NO console.log in production code — use proper logging
+- NO single-team assumptions — always design for 32 teams

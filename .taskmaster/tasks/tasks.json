@@ -1,0 +1,633 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Initialize React + Vite + Tailwind project",
+        "description": "Create the foundational frontend project structure using Vite with React and configure Tailwind CSS",
+        "details": "Run `npm create vite@latest . -- --template react-ts` to initialize project with TypeScript. Install Tailwind CSS: `npm install -D tailwindcss postcss autoprefixer`, then `npx tailwindcss init -p`. Configure tailwind.config.js with content paths: ['./index.html', './src/**/*.{js,ts,jsx,tsx}']. Add Tailwind directives to index.css: @tailwind base; @tailwind components; @tailwind utilities;. Set up base folder structure: src/components, src/pages, src/lib, src/types, src/styles.",
+        "testStrategy": "Run `npm run dev` and verify the Vite dev server starts successfully. Check that Tailwind classes render correctly by adding a test component with Tailwind utilities.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T21:02:44.233Z"
+      },
+      {
+        "id": "2",
+        "title": "Configure Supabase project and environment variables",
+        "description": "Set up Supabase project instance and configure environment variables for all required services",
+        "details": "Create new Supabase project at supabase.com. Copy project URL and anon key. Create .env file based on .env.example with: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (for Edge Functions), ANTHROPIC_API_KEY (for Claude API), RESEND_API_KEY (for email). Install Supabase client: `npm install @supabase/supabase-js`. Create src/lib/supabase.ts with createClient configuration using environment variables.",
+        "testStrategy": "Verify all environment variables are properly loaded. Test Supabase connection by running a simple query to check connectivity in browser console.",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T21:02:44.237Z"
+      },
+      {
+        "id": "3",
+        "title": "Create database schema and migrations",
+        "description": "Design and implement the complete PostgreSQL database schema with all tables and relationships",
+        "details": "Create Supabase migration file with SQL schema:\n\n-- teams table: id (uuid/pk), name, city, slug (unique), abbreviation, primary_color, secondary_color, accent_color, logo_url, division, conference, is_active (default false), created_at\n\n-- subscribers table: id (uuid/pk), email (unique), team_id (fk → teams), subscribed_at (default now()), is_active (default true), last_opened_at, created_at\n\n-- sources table: id (uuid/pk), team_id (nullable fk → teams), url (unique), name, type (enum: global/team_specific/user_submitted), status (enum: pending/approved/rejected/flagged), relevance_score (0-100), submitted_by (email), created_at, updated_at\n\n-- articles table: id (uuid/pk), source_id (fk → sources), team_id (fk → teams), title, original_url (unique), raw_content (text), ai_summary, published_at, relevance_confirmed (boolean), category (enum: transaction/injury/game_analysis/rumor/general), created_at\n\n-- newsletters table: id (uuid/pk), team_id (fk → teams), sent_at, subject_line, html_content (text), status (enum: draft/sent), created_at\n\n-- newsletter_metrics table: id (uuid/pk), newsletter_id (fk → newsletters), subscriber_id (fk → subscribers), opened_at, feedback (enum: thumbs_up/thumbs_down, nullable), created_at\n\nAdd indexes on: subscribers.email, sources.status, articles.team_id + published_at, newsletters.team_id + sent_at. Enable RLS on all tables.",
+        "testStrategy": "Run migration in Supabase dashboard. Verify all tables created with correct columns, data types, constraints, and indexes. Test foreign key relationships.",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T20:44:44.763Z"
+      },
+      {
+        "id": "4",
+        "title": "Seed all 32 NFL teams data",
+        "description": "Populate the teams table with complete data for all 32 NFL teams including colors and logos",
+        "details": "Create seed SQL script with INSERT statements for all 32 teams. For each team include: name, city, slug (kebab-case), abbreviation (3-letter), primary_color (hex), secondary_color (hex), accent_color (hex), logo_url (use NFL official CDN or ESPN API for logos), division (AFC/NFC East/North/South/West), conference (AFC/NFC). Set is_active=true only for Seattle Seahawks initially. Team data: Buffalo Bills (#00338D, #C60C30), Miami Dolphins (#008E97, #FC4C02), New England Patriots (#002244, #C60C30), NY Jets (#125740, #000000), Baltimore Ravens (#241773, #000000), Cincinnati Bengals (#FB4F14, #000000), Cleveland Browns (#311D00, #FF3C00), Pittsburgh Steelers (#FFB612, #000000), Houston Texans (#03202F, #A71930), Indianapolis Colts (#002C5F, #A2AAAD), Jacksonville Jaguars (#006778, #D7A22A), Tennessee Titans (#0C2340, #4B92DB), Denver Broncos (#FB4F14, #002244), Kansas City Chiefs (#E31837, #FFB81C), Las Vegas Raiders (#000000, #A5ACAF), LA Chargers (#0080C6, #FFC20E), Dallas Cowboys (#041E42, #869397), NY Giants (#0B2265, #A71930), Philadelphia Eagles (#004C54, #A5ACAF), Washington Commanders (#5A1414, #FFB612), Chicago Bears (#0B162A, #C83803), Detroit Lions (#0076B6, #B0B7BC), Green Bay Packers (#203731, #FFB612), Minnesota Vikings (#4F2683, #FFC62F), Atlanta Falcons (#A71930, #000000), Carolina Panthers (#0085CA, #101820), New Orleans Saints (#D3BC8D, #101820), Tampa Bay Buccaneers (#D50A0A, #FF7900), Arizona Cardinals (#97233F, #000000), LA Rams (#003594, #FFA300), San Francisco 49ers (#AA0000, #B3995D), Seattle Seahawks (#002244, #69BE28, #A5ACAF, is_active=true).",
+        "testStrategy": "Query teams table and verify 32 teams exist with correct data. Verify only Seattle Seahawks has is_active=true. Check all color codes are valid hex format.",
+        "priority": "high",
+        "dependencies": [
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T20:44:44.764Z"
+      },
+      {
+        "id": "5",
+        "title": "Set up Vercel deployment configuration",
+        "description": "Configure Vercel project for automated deployments with environment variables",
+        "details": "Create vercel.json in project root with configuration: { \"buildCommand\": \"npm run build\", \"outputDirectory\": \"dist\", \"framework\": \"vite\", \"rewrites\": [{ \"source\": \"/(.*)\", \"destination\": \"/index.html\" }] }. Connect GitHub repository to Vercel. Configure environment variables in Vercel dashboard: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY. Set up production and preview deployments. Configure custom domain if available.",
+        "testStrategy": "Push code to GitHub and verify Vercel automatically triggers build. Check deployment succeeds and app is accessible at Vercel URL. Verify environment variables are properly injected.",
+        "priority": "medium",
+        "dependencies": [
+          "1",
+          "2"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T20:44:44.766Z"
+      },
+      {
+        "id": "6",
+        "title": "Install and configure TypeScript types",
+        "description": "Set up comprehensive TypeScript types for all database models and API responses",
+        "details": "Create src/types/database.ts with interfaces:\n\ntype TeamID = string;\ntype Category = 'transaction' | 'injury' | 'game_analysis' | 'rumor' | 'general';\ntype SourceType = 'global' | 'team_specific' | 'user_submitted';\ntype SourceStatus = 'pending' | 'approved' | 'rejected' | 'flagged';\ntype NewsletterStatus = 'draft' | 'sent';\ntype Feedback = 'thumbs_up' | 'thumbs_down' | null;\n\ninterface Team { id: string; name: string; city: string; slug: string; abbreviation: string; primary_color: string; secondary_color: string; accent_color: string; logo_url: string; division: string; conference: string; is_active: boolean; created_at: string; }\n\ninterface Subscriber { id: string; email: string; team_id: string; subscribed_at: string; is_active: boolean; last_opened_at: string | null; }\n\ninterface Source { id: string; team_id: string | null; url: string; name: string; type: SourceType; status: SourceStatus; relevance_score: number | null; submitted_by: string | null; created_at: string; }\n\ninterface Article { id: string; source_id: string; team_id: string; title: string; original_url: string; raw_content: string; ai_summary: string | null; published_at: string; relevance_confirmed: boolean; category: Category | null; created_at: string; }\n\ninterface Newsletter { id: string; team_id: string; sent_at: string | null; subject_line: string; html_content: string; status: NewsletterStatus; created_at: string; }\n\ninterface NewsletterMetric { id: string; newsletter_id: string; subscriber_id: string; opened_at: string | null; feedback: Feedback; created_at: string; }\n\nExport all types and interfaces.",
+        "testStrategy": "Import types in multiple files and verify TypeScript compilation succeeds with no errors. Test type inference works correctly.",
+        "priority": "medium",
+        "dependencies": [
+          "1",
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T20:44:44.767Z"
+      },
+      {
+        "id": "7",
+        "title": "Design and implement landing page with team selection",
+        "description": "Create the main landing page featuring all 32 NFL team cards for selection",
+        "details": "Create src/pages/Home.tsx component. Fetch all teams from Supabase teams table. Display teams in responsive grid (4 cols desktop, 2 cols tablet, 1 col mobile) using CSS Grid. Each team card component (src/components/TeamCard.tsx) displays: team logo (64x64px), team name (city + name), team colors as accent border/background. On hover: scale(1.05) transition, shadow effect. On click: navigate to /signup?team={slug} with selected team data. Use Tailwind for styling. Implement loading state skeleton while fetching teams. Filter display to show only is_active teams, but allow admin override to show all 32. Add hero section with app name 'NFL Wire', tagline '5-minute morning briefing for your team', and CTA 'Choose Your Team'.",
+        "testStrategy": "Verify all 32 team cards render correctly with logos and colors. Test responsive behavior on mobile/tablet/desktop viewports. Verify clicking a team navigates to signup page with correct team slug. Test loading state.",
+        "priority": "high",
+        "dependencies": [
+          "2",
+          "4",
+          "6"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "8",
+        "title": "Create email signup form component",
+        "description": "Build the subscriber signup form with email validation and team association",
+        "details": "Create src/pages/Signup.tsx component. Read team slug from URL query param (?team=seattle-seahawks). Display selected team logo, name, and colors. Form fields: email input (type=email, required, validation regex: /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/). Add client-side validation with error messages. On submit: POST to Supabase subscribers table with { email, team_id, subscribed_at: new Date(), is_active: true }. Handle duplicate email error gracefully. Show success message: 'Welcome aboard! Check your inbox for confirmation.' Redirect to /confirmed after 2 seconds. Add loading spinner during submission. Include 'Change Team' link to return to home page.",
+        "testStrategy": "Test successful signup flow end-to-end. Verify email validation rejects invalid formats. Test duplicate email handling. Verify subscriber record created in database with correct team_id. Test form accessibility (keyboard navigation, ARIA labels).",
+        "priority": "high",
+        "dependencies": [
+          "7"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "9",
+        "title": "Integrate Resend API for transactional emails",
+        "description": "Set up Resend email service and create confirmation email template",
+        "details": "Sign up for Resend account and verify domain. Install Resend SDK: `npm install resend` (for Edge Functions). Create src/email-templates/confirmation.ts with HTML email template: branded header with NFL Wire logo, personalized greeting, confirmation message 'You're now subscribed to {team_name} news', expectation setting (daily 6am emails), footer with 'Manage Subscription' link. Create Supabase Edge Function: supabase/functions/send-confirmation-email/index.ts. Function accepts { email, team_name, team_id } and sends email via Resend API using service role key. Add API endpoint POST /api/send-confirmation triggered on subscriber insert via Supabase Database Webhook or called directly from signup form. Use Resend SDK: await resend.emails.send({ from: 'NFL Wire <news@nflwire.com>', to: email, subject: 'Welcome to NFL Wire', html: confirmationTemplate }). Handle errors and return status.",
+        "testStrategy": "Test email delivery by completing signup flow. Verify email arrives in inbox (check spam folder). Validate email renders correctly across major clients (Gmail, Outlook, iOS Mail). Test error handling when Resend API fails.",
+        "priority": "high",
+        "dependencies": [
+          "8"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "10",
+        "title": "Create Supabase Edge Function scaffold",
+        "description": "Set up the base structure for Supabase Edge Functions with shared utilities",
+        "details": "Install Supabase CLI: `npm install -g supabase`. Initialize functions: `supabase functions new validate-source`, `supabase functions new run-content-pipeline`, `supabase functions new assemble-and-send`. Create shared utilities in supabase/functions/_shared/: supabase-client.ts (service role client), anthropic-client.ts (Claude API wrapper with rate limiting), resend-client.ts (email sender), types.ts (shared type definitions), error-handler.ts (consistent error responses). Configure CORS headers for all functions. Set up function secrets: `supabase secrets set ANTHROPIC_API_KEY=xxx RESEND_API_KEY=xxx`. Each function should import from _shared for consistency.",
+        "testStrategy": "Deploy functions to Supabase: `supabase functions deploy validate-source`. Test each function endpoint returns 200 OK with test payload. Verify shared utilities can be imported without errors.",
+        "priority": "high",
+        "dependencies": [
+          "2",
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T21:03:46.881Z"
+      },
+      {
+        "id": "11",
+        "title": "Implement source reachability check (validation check 1)",
+        "description": "Build the first validation step to verify submitted sources are accessible and parseable",
+        "details": "In validate-source Edge Function, implement Check 1:\n\nasync function checkReachability(url: string): Promise<{ reachable: boolean; reason?: string }> {\n  try {\n    const controller = new AbortController();\n    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout\n    \n    const response = await fetch(url, {\n      method: 'HEAD',\n      signal: controller.signal,\n      headers: { 'User-Agent': 'NFL Wire Bot/1.0' }\n    });\n    clearTimeout(timeoutId);\n    \n    if (!response.ok) return { reachable: false, reason: `HTTP ${response.status}` };\n    \n    // Check content type is HTML or RSS/XML\n    const contentType = response.headers.get('content-type');\n    if (!contentType?.includes('html') && !contentType?.includes('xml') && !contentType?.includes('rss')) {\n      return { reachable: false, reason: 'Invalid content type' };\n    }\n    \n    return { reachable: true };\n  } catch (error) {\n    if (error.name === 'AbortError') return { reachable: false, reason: 'Timeout after 10s' };\n    return { reachable: false, reason: error.message };\n  }\n}\n\nUpdate source record status to 'rejected' with reason if check fails.",
+        "testStrategy": "Test with valid URLs (ESPN.com, NFL.com) and verify reachable=true. Test with invalid URLs (404 pages, timeouts) and verify reachable=false with correct reason. Test timeout handling with slow-responding server.",
+        "priority": "high",
+        "dependencies": [
+          "10"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T21:03:46.885Z"
+      },
+      {
+        "id": "12",
+        "title": "Implement AI-based team relevance check (validation check 2)",
+        "description": "Build Claude API integration to verify source content is relevant to specific NFL team",
+        "details": "In validate-source Edge Function, implement Check 2:\n\nasync function checkTeamRelevance(url: string, teamName: string): Promise<{ relevant: boolean; confidence: number; reason?: string }> {\n  // Fetch full content\n  const response = await fetch(url);\n  const html = await response.text();\n  \n  // Extract text content (remove HTML tags, scripts, styles)\n  const textContent = html.replace(/<script[^>]*>.*?<\\/script>/gi, '')\n    .replace(/<style[^>]*>.*?<\\/style>/gi, '')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim()\n    .slice(0, 4000); // Limit to 4000 chars for API\n  \n  // Call Claude API\n  const prompt = `Analyze if the following content contains news specifically about the ${teamName} NFL team. Consider mentions of team name, players, coaches, games, transactions. Reply with JSON only: { \"relevant\": true/false, \"confidence\": 0-100 }\\n\\nContent: ${textContent}`;\n  \n  const response = await fetch('https://api.anthropic.com/v1/messages', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'x-api-key': Deno.env.get('ANTHROPIC_API_KEY'),\n      'anthropic-version': '2023-06-01'\n    },\n    body: JSON.stringify({\n      model: 'claude-3-haiku-20240307',\n      max_tokens: 200,\n      messages: [{ role: 'user', content: prompt }]\n    })\n  });\n  \n  const result = await response.json();\n  const parsed = JSON.parse(result.content[0].text);\n  \n  // Detect non-English (basic check)\n  const englishRatio = (textContent.match(/[a-zA-Z]/g) || []).length / textContent.length;\n  if (englishRatio < 0.7) {\n    return { relevant: false, confidence: 0, reason: 'Non-English content detected' };\n  }\n  \n  return { relevant: parsed.confidence >= 60, confidence: parsed.confidence };\n}\n\nUpdate source status: confidence >= 60 → 'approved', < 60 → 'flagged', non-English → 'flagged'.",
+        "testStrategy": "Test with team-specific source (Seahawks beat reporter) and verify high confidence (>80). Test with general sports source and verify lower confidence. Test with non-English page and verify flagged. Verify Claude API responses are parsed correctly.",
+        "priority": "high",
+        "dependencies": [
+          "11"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T21:03:46.886Z"
+      },
+      {
+        "id": "13",
+        "title": "Build source validation orchestration",
+        "description": "Create main validation pipeline that runs both checks and updates source status",
+        "details": "Complete validate-source Edge Function with main handler:\n\nDeno.serve(async (req) => {\n  const { source_id } = await req.json();\n  \n  // Fetch source from database\n  const { data: source } = await supabase\n    .from('sources')\n    .select('*, teams(name)')\n    .eq('id', source_id)\n    .single();\n  \n  // Run Check 1: Reachability\n  const reachResult = await checkReachability(source.url);\n  if (!reachResult.reachable) {\n    await supabase.from('sources')\n      .update({ status: 'rejected', relevance_score: 0 })\n      .eq('id', source_id);\n    return new Response(JSON.stringify({ status: 'rejected', reason: reachResult.reason }));\n  }\n  \n  // Run Check 2: Team Relevance (only if team-specific or user-submitted)\n  if (source.team_id) {\n    const relevanceResult = await checkTeamRelevance(source.url, source.teams.name);\n    \n    const finalStatus = relevanceResult.relevant ? 'approved' : 'flagged';\n    await supabase.from('sources')\n      .update({ \n        status: finalStatus, \n        relevance_score: relevanceResult.confidence \n      })\n      .eq('id', source_id);\n    \n    // Send admin notification if flagged\n    if (finalStatus === 'flagged') {\n      await notifyAdmin(source, relevanceResult);\n    }\n    \n    return new Response(JSON.stringify({ status: finalStatus, confidence: relevanceResult.confidence }));\n  }\n  \n  // Global sources auto-approved\n  await supabase.from('sources').update({ status: 'approved', relevance_score: 100 }).eq('id', source_id);\n  return new Response(JSON.stringify({ status: 'approved' }));\n});\n\nAdd logging for debugging.",
+        "testStrategy": "Submit various test sources (valid team-specific, invalid URL, broad source, non-English) and verify correct status updates. Check admin notifications sent for flagged sources. Verify pipeline completes within 15 seconds.",
+        "priority": "high",
+        "dependencies": [
+          "12"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T21:03:46.888Z"
+      },
+      {
+        "id": "14",
+        "title": "Create source submission form",
+        "description": "Build user-facing form for submitting new sources for validation",
+        "details": "Create src/pages/SubmitSource.tsx component. Form fields: URL (required, type=url), optional label/name. Team selection dropdown (fetch from teams table). Client validation: URL format, no duplicates. On submit: POST to sources table with { url, name, type: 'user_submitted', status: 'pending', team_id, submitted_by: email }. Trigger validate-source Edge Function asynchronously. Show success message: 'Source submitted! You'll receive email notification once reviewed.' Add loading state. Create /submit-source public route. Add link in newsletter footer.",
+        "testStrategy": "Submit valid source and verify record created with status='pending'. Verify validation function triggered (check logs). Test duplicate URL rejection. Verify user receives notification email after validation completes.",
+        "priority": "medium",
+        "dependencies": [
+          "13"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "15",
+        "title": "Seed global approved sources",
+        "description": "Populate sources table with pre-approved global NFL news sources",
+        "details": "Create seed SQL script for global sources (team_id=null, type='global', status='approved', relevance_score=100):\n\nINSERT INTO sources (team_id, url, name, type, status, relevance_score) VALUES\n(NULL, 'https://www.espn.com/nfl/', 'ESPN NFL', 'global', 'approved', 100),\n(NULL, 'https://www.nfl.com/news', 'NFL.com', 'global', 'approved', 100),\n(NULL, 'https://apnews.com/hub/nfl', 'AP Sports NFL', 'global', 'approved', 100),\n(NULL, 'https://www.cbssports.com/nfl/news/', 'CBS Sports NFL', 'global', 'approved', 100),\n(NULL, 'https://www.si.com/nfl', 'Sports Illustrated NFL', 'global', 'approved', 100),\n(NULL, 'https://www.theringer.com/nfl', 'The Ringer NFL', 'global', 'approved', 100),\n(NULL, 'https://www.profootballtalk.com/', 'Pro Football Talk', 'global', 'approved', 100),\n(NULL, 'https://www.espn.com/nfl/insider/', 'ESPN Insider', 'global', 'approved', 100);\n\nAlso add team-specific sources for Seattle Seahawks:\n('seahawks-team-id', 'https://www.seahawks.com/news', 'Seahawks Official', 'team_specific', 'approved', 100),\n('seahawks-team-id', 'https://www.fieldgulls.com/', 'Field Gulls', 'team_specific', 'approved', 95);\n\nRun seed script.",
+        "testStrategy": "Query sources table and verify 8+ global sources exist. Verify Seattle Seahawks has 2+ team-specific sources. Check all have status='approved'.",
+        "priority": "medium",
+        "dependencies": [
+          "4",
+          "13"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T21:03:46.890Z"
+      },
+      {
+        "id": "16",
+        "title": "Implement article fetching and deduplication",
+        "description": "Build article scraper that fetches content from approved sources and removes duplicates",
+        "details": "In run-content-pipeline Edge Function, implement Step 1 (Fetch):\n\nasync function fetchArticles(teamId: string): Promise<Article[]> {\n  // Get approved sources for team\n  const { data: sources } = await supabase\n    .from('sources')\n    .select('*')\n    .eq('status', 'approved')\n    .or(`team_id.eq.${teamId},team_id.is.null`); // Team-specific + global\n  \n  const articles = [];\n  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);\n  \n  for (const source of sources) {\n    try {\n      // Fetch RSS feed or scrape HTML\n      const response = await fetch(source.url);\n      const content = await response.text();\n      \n      // Parse RSS if available\n      if (content.includes('<rss') || content.includes('<feed')) {\n        const parser = new DOMParser();\n        const doc = parser.parseFromString(content, 'text/xml');\n        const items = doc.querySelectorAll('item');\n        \n        items.forEach(item => {\n          const pubDate = new Date(item.querySelector('pubDate').textContent);\n          if (pubDate >= twentyFourHoursAgo) {\n            articles.push({\n              source_id: source.id,\n              title: item.querySelector('title').textContent,\n              original_url: item.querySelector('link').textContent,\n              raw_content: item.querySelector('description').textContent,\n              published_at: pubDate.toISOString()\n            });\n          }\n        });\n      }\n      // Fallback: scrape HTML articles\n      else {\n        // Use basic heuristics to find article links and dates\n        // This is simplified - consider using library like cheerio\n      }\n    } catch (error) {\n      console.error(`Failed to fetch source ${source.id}:`, error);\n      // Continue with other sources\n    }\n  }\n  \n  // Deduplicate by URL\n  const uniqueArticles = articles.filter((article, index, self) => \n    index === self.findIndex(a => a.original_url === article.original_url)\n  );\n  \n  // Deduplicate by title similarity (Levenshtein distance > 85% = duplicate)\n  // Implementation omitted for brevity\n  \n  return uniqueArticles;\n}\n\nStore in memory for next pipeline step.",
+        "testStrategy": "Run pipeline for Seattle Seahawks and verify articles fetched from multiple sources. Check articles are from last 24 hours. Verify duplicates removed. Test with sources that have RSS vs HTML-only.",
+        "priority": "high",
+        "dependencies": [
+          "10",
+          "15"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "17",
+        "title": "Implement article filtering by team relevance",
+        "description": "Filter fetched articles to only include those relevant to the specific team",
+        "details": "In run-content-pipeline Edge Function, implement Step 2 (Filter):\n\nasync function filterArticlesByTeam(articles: Article[], teamName: string): Promise<Article[]> {\n  const filtered = [];\n  const globalDiscardCount = new Map(); // Track discard rate per source\n  \n  for (const article of articles) {\n    // Simple check: does article mention team name?\n    const content = (article.title + ' ' + article.raw_content).toLowerCase();\n    const teamMentioned = content.includes(teamName.toLowerCase());\n    \n    if (teamMentioned) {\n      filtered.push({ ...article, relevance_confirmed: true });\n    } else {\n      // Track discard for global sources\n      if (article.source.team_id === null) {\n        globalDiscardCount.set(article.source_id, (globalDiscardCount.get(article.source_id) || 0) + 1);\n      }\n    }\n  }\n  \n  // Flag low-relevance sources (>50% discarded)\n  for (const [sourceId, discardCount] of globalDiscardCount.entries()) {\n    const totalFromSource = articles.filter(a => a.source_id === sourceId).length;\n    const discardRate = discardCount / totalFromSource;\n    \n    if (discardRate > 0.5) {\n      await supabase.from('sources')\n        .update({ status: 'flagged' })\n        .eq('id', sourceId);\n      \n      await notifyAdmin({ sourceId, discardRate, teamName });\n    }\n  }\n  \n  return filtered;\n}\n\nReturn only relevant articles for summarization.",
+        "testStrategy": "Run pipeline with broad source (ESPN) and team-specific source. Verify global articles without team mention are filtered out. Verify team-specific articles pass through. Test source flagging when discard rate > 50%.",
+        "priority": "high",
+        "dependencies": [
+          "16"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "18",
+        "title": "Implement AI article summarization and categorization",
+        "description": "Use Claude API to generate concise summaries and assign categories to articles",
+        "details": "In run-content-pipeline Edge Function, implement Step 3 (Summarize):\n\nasync function summarizeArticles(articles: Article[], teamName: string): Promise<Article[]> {\n  const summarized = [];\n  \n  for (const article of articles) {\n    try {\n      const prompt = `Summarize this NFL article in 2-3 sentences for a busy fan. Be factual, avoid hype. Focus on ${teamName}. \n\nArticle Title: ${article.title}\nContent: ${article.raw_content.slice(0, 3000)}\n\nProvide summary and category. Reply with JSON only: { \"summary\": \"...\", \"category\": \"transaction|injury|game_analysis|rumor|general\" }`;\n      \n      const response = await fetch('https://api.anthropic.com/v1/messages', {\n        method: 'POST',\n        headers: {\n          'Content-Type': 'application/json',\n          'x-api-key': Deno.env.get('ANTHROPIC_API_KEY'),\n          'anthropic-version': '2023-06-01'\n        },\n        body: JSON.stringify({\n          model: 'claude-3-haiku-20240307',\n          max_tokens: 300,\n          messages: [{ role: 'user', content: prompt }]\n        })\n      });\n      \n      const result = await response.json();\n      const parsed = JSON.parse(result.content[0].text);\n      \n      summarized.push({\n        ...article,\n        ai_summary: parsed.summary,\n        category: parsed.category,\n        team_id: teamId // Add team association\n      });\n    } catch (error) {\n      console.error(`Failed to summarize article ${article.original_url}:`, error);\n      // Skip article on error\n    }\n  }\n  \n  return summarized;\n}\n\nInsert summarized articles into articles table.",
+        "testStrategy": "Run pipeline and verify articles get 2-3 sentence summaries. Check categories assigned correctly (injury articles tagged as 'injury'). Verify summaries are factual and team-focused. Test rate limiting handling for Claude API.",
+        "priority": "high",
+        "dependencies": [
+          "17"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "19",
+        "title": "Implement article ranking and selection logic",
+        "description": "Rank articles by priority and select top story, quick hits, and injury report",
+        "details": "In run-content-pipeline Edge Function, implement Step 4 (Rank & Select):\n\nfunction rankAndSelectArticles(articles: Article[]): { leadStory: Article, quickHits: Article[], injuries: Article[] } {\n  // Category priority: transaction > injury > game_analysis > rumor > general\n  const categoryPriority = {\n    'transaction': 5,\n    'injury': 4,\n    'game_analysis': 3,\n    'rumor': 2,\n    'general': 1\n  };\n  \n  // Sort by category priority, then by published_at (newest first)\n  const sorted = articles.sort((a, b) => {\n    const priorityDiff = categoryPriority[b.category] - categoryPriority[a.category];\n    if (priorityDiff !== 0) return priorityDiff;\n    return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();\n  });\n  \n  // Select lead story (highest priority, not injury)\n  const leadStory = sorted.find(a => a.category !== 'injury');\n  \n  // Select 3 quick hits (exclude lead story and injuries)\n  const quickHits = sorted\n    .filter(a => a.id !== leadStory.id && a.category !== 'injury')\n    .slice(0, 3);\n  \n  // Select all injury articles\n  const injuries = articles.filter(a => a.category === 'injury');\n  \n  return { leadStory, quickHits, injuries };\n}\n\nReturn selected articles for newsletter assembly.",
+        "testStrategy": "Create test articles with different categories and timestamps. Verify ranking prioritizes transactions over general news. Verify lead story is highest priority non-injury article. Verify exactly 3 quick hits selected.",
+        "priority": "medium",
+        "dependencies": [
+          "18"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "20",
+        "title": "Implement AI-generated stat of the day",
+        "description": "Use Claude API to generate contextual team statistics for newsletter",
+        "details": "In run-content-pipeline Edge Function, add stat generation:\n\nasync function generateStatOfTheDay(teamName: string, recentArticles: Article[]): Promise<{ stat: string, context: string }> {\n  const articlesContext = recentArticles.map(a => a.title).join('; ');\n  \n  const prompt = `Generate an interesting, contextual statistic about the ${teamName} NFL team. Consider recent news: ${articlesContext}. The stat should be specific, factual, and relevant to current events. Provide a 2-sentence explanation of why it matters. Reply with JSON only: { \"stat\": \"...\", \"context\": \"...\" }`;\n  \n  const response = await fetch('https://api.anthropic.com/v1/messages', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'x-api-key': Deno.env.get('ANTHROPIC_API_KEY'),\n      'anthropic-version': '2023-06-01'\n    },\n    body: JSON.stringify({\n      model: 'claude-3-haiku-20240307',\n      max_tokens: 250,\n      messages: [{ role: 'user', content: prompt }]\n    })\n  });\n  \n  const result = await response.json();\n  const parsed = JSON.parse(result.content[0].text);\n  \n  return { stat: parsed.stat, context: parsed.context };\n}\n\nInclude in newsletter assembly data.",
+        "testStrategy": "Generate stat for Seattle Seahawks and verify it's relevant and factual. Test with different article contexts and verify stat adapts. Verify 2-sentence context provided.",
+        "priority": "medium",
+        "dependencies": [
+          "19"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "21",
+        "title": "Create multi-team pipeline orchestration",
+        "description": "Implement team iteration logic to run pipeline for all active teams independently",
+        "details": "In run-content-pipeline Edge Function, implement Step 0 (Team Iteration):\n\nDeno.serve(async (req) => {\n  // Get all active teams\n  const { data: teams } = await supabase\n    .from('teams')\n    .select('*')\n    .eq('is_active', true);\n  \n  const results = [];\n  \n  for (const team of teams) {\n    try {\n      console.log(`Starting pipeline for ${team.name}`);\n      \n      // Run full pipeline\n      const articles = await fetchArticles(team.id);\n      const filtered = await filterArticlesByTeam(articles, team.name);\n      const summarized = await summarizeArticles(filtered, team.name);\n      const selected = rankAndSelectArticles(summarized);\n      const stat = await generateStatOfTheDay(team.name, summarized);\n      \n      // Store in database for newsletter assembly\n      const { data: insertedArticles } = await supabase\n        .from('articles')\n        .insert(summarized)\n        .select();\n      \n      results.push({\n        team_id: team.id,\n        status: 'success',\n        article_count: summarized.length,\n        selected_articles: selected,\n        stat_of_day: stat\n      });\n      \n      console.log(`Completed pipeline for ${team.name}: ${summarized.length} articles`);\n    } catch (error) {\n      console.error(`Pipeline failed for ${team.name}:`, error);\n      results.push({\n        team_id: team.id,\n        status: 'failed',\n        error: error.message\n      });\n      // Continue with next team - failure does not block others\n    }\n  }\n  \n  return new Response(JSON.stringify({ results }));\n});\n\nEnsure one team failure doesn't stop pipeline.",
+        "testStrategy": "Enable multiple teams. Run pipeline and verify it processes all teams. Simulate failure for one team (bad source) and verify others complete successfully. Check logs show progress for each team.",
+        "priority": "high",
+        "dependencies": [
+          "20"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "22",
+        "title": "Set up cron schedule for daily pipeline execution",
+        "description": "Configure Supabase cron job to trigger content pipeline daily at 6:00 AM",
+        "details": "In Supabase Dashboard, go to Database > Extensions and enable pg_cron. Create cron job:\n\nSELECT cron.schedule(\n  'run-content-pipeline',\n  '0 6 * * *', -- 6:00 AM daily\n  $$\n  SELECT net.http_post(\n    url := 'https://[PROJECT-REF].supabase.co/functions/v1/run-content-pipeline',\n    headers := jsonb_build_object(\n      'Content-Type', 'application/json',\n      'Authorization', 'Bearer [SERVICE-ROLE-KEY]'\n    )\n  );\n  $$\n);\n\nAlternatively, use Supabase Edge Function scheduled invocations (if available in your plan). Configure timezone to ensure 6:00 AM aligns with target audience (likely ET for NFL).",
+        "testStrategy": "Verify cron job created successfully in pg_cron.job table. Manually trigger job and verify pipeline executes. Check cron execution logs. Consider testing at different time initially, then change to 6 AM.",
+        "priority": "medium",
+        "dependencies": [
+          "21"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "23",
+        "title": "Design HTML email template structure",
+        "description": "Create responsive, mobile-first email template with four content sections",
+        "details": "Create src/email-templates/newsletter.ts with HTML structure:\n\n- DOCTYPE and HTML5 boilerplate for email\n- Head: meta viewport, title, inline CSS (email clients strip external CSS)\n- Body: full-width table-based layout (for email client compatibility)\n- Header: NFL Wire logo (centered), team logo, team colors as accent\n- Section 1 - Top Story: article title (24px, bold), 3-sentence summary, source attribution (gray, 12px), timestamp, Read More link (team primary color)\n- Section 2 - Quick Hits: 3 articles, each with headline (18px, bold), 2-sentence summary, source\n- Section 3 - Injury Report: table with columns (Player, Position, Injury, Status), color-coded status (Out=red, Questionable=yellow, Probable=green)\n- Section 4 - Stat of the Day: large stat text (36px, team accent color), 2-sentence context\n- Footer: 👍 / 👎 feedback buttons (large tap targets 44x44px), Unsubscribe link, Submit a source link\n- Typography: Use web-safe fonts as fallback (Georgia for serif, Arial for sans)\n- Mobile-first: single column, 600px max width, generous padding (20px), font size >= 16px for readability\n- Team colors: use as border accents, button backgrounds, headings\n\nExport as template function accepting { team, articles, stat }.",
+        "testStrategy": "Render template with test data in browser. Test responsive behavior (mobile, tablet, desktop). Validate HTML using W3C validator. Check accessibility (alt text, semantic HTML).",
+        "priority": "high",
+        "dependencies": [
+          "6"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "24",
+        "title": "Implement email template rendering with team colors",
+        "description": "Build dynamic template renderer that injects team-specific colors and content",
+        "details": "Create template rendering function:\n\nfunction renderNewsletterTemplate(data: {\n  team: Team,\n  leadStory: Article,\n  quickHits: Article[],\n  injuries: Article[],\n  statOfDay: { stat: string, context: string },\n  subscriber: Subscriber,\n  newsletter: Newsletter\n}): string {\n  const { team, leadStory, quickHits, injuries, statOfDay, subscriber, newsletter } = data;\n  \n  // Generate tracking pixel URL\n  const pixelUrl = `https://[PROJECT-URL]/api/track-open?newsletter_id=${newsletter.id}&subscriber_id=${subscriber.id}`;\n  \n  // Generate feedback links\n  const thumbsUpUrl = `https://[PROJECT-URL]/api/feedback?newsletter_id=${newsletter.id}&subscriber_id=${subscriber.id}&feedback=thumbs_up`;\n  const thumbsDownUrl = `https://[PROJECT-URL]/api/feedback?newsletter_id=${newsletter.id}&subscriber_id=${subscriber.id}&feedback=thumbs_down`;\n  \n  // Generate unsubscribe link\n  const unsubscribeUrl = `https://[PROJECT-URL]/unsubscribe?subscriber_id=${subscriber.id}`;\n  \n  return `\n    <!DOCTYPE html>\n    <html>\n      <head>\n        <meta charset=\"UTF-8\">\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n        <style>\n          body { margin: 0; padding: 0; font-family: Georgia, serif; background: #f9f9f9; }\n          .container { max-width: 600px; margin: 0 auto; background: white; }\n          .header { background: ${team.primary_color}; padding: 20px; text-align: center; }\n          .lead-story { padding: 30px 20px; border-left: 4px solid ${team.secondary_color}; }\n          /* ... rest of styles with team.primary_color, team.secondary_color, team.accent_color ... */\n        </style>\n      </head>\n      <body>\n        <div class=\"container\">\n          <div class=\"header\">...</div>\n          <div class=\"lead-story\">\n            <h1>${leadStory.title}</h1>\n            <p>${leadStory.ai_summary}</p>\n            <a href=\"${leadStory.original_url}\">Read More</a>\n          </div>\n          <!-- Quick hits, injuries, stat sections -->\n          <div class=\"footer\">\n            <a href=\"${thumbsUpUrl}\">👍</a>\n            <a href=\"${thumbsDownUrl}\">👎</a>\n            <a href=\"${unsubscribeUrl}\">Unsubscribe</a>\n          </div>\n          <img src=\"${pixelUrl}\" width=\"1\" height=\"1\" alt=\"\" />\n        </div>\n      </body>\n    </html>\n  `;\n}\n\nEnsure all colors, content, and links are dynamically injected.",
+        "testStrategy": "Render newsletter for Seattle Seahawks and verify team colors applied correctly. Check all links resolve. Verify tracking pixel present. Test with different teams and verify colors change.",
+        "priority": "high",
+        "dependencies": [
+          "23"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "25",
+        "title": "Test email rendering across major clients",
+        "description": "Validate email template renders correctly in Gmail, Outlook, iOS Mail, and other clients",
+        "details": "Use email testing service like Litmus or Email on Acid. Send test newsletter to multiple email clients:\n\n- Gmail (web, Android app, iOS app)\n- Outlook (Windows desktop, web, Mac)\n- iOS Mail (iPhone, iPad)\n- Apple Mail (macOS)\n- Yahoo Mail\n- Outlook.com\n\nCheck for:\n- Correct rendering of table layouts\n- Team colors display accurately\n- Images load (logos, tracking pixel)\n- Links clickable\n- Typography readable at default zoom\n- Mobile responsive (stack to single column)\n- Dark mode compatibility (test iOS dark mode)\n\nFix rendering issues:\n- Add mso-specific styles for Outlook\n- Use table-based layout (not flexbox/grid)\n- Inline all CSS\n- Add alt text for images\n- Use web-safe fonts with fallbacks\n\nDocument known limitations per client.",
+        "testStrategy": "Send newsletter to personal email accounts across platforms. Have team members test on their devices. Create checklist of rendering checks. Fix critical issues (broken layout, unreadable text). Accept minor cosmetic differences between clients.",
+        "priority": "medium",
+        "dependencies": [
+          "24"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "26",
+        "title": "Implement newsletter assembly logic",
+        "description": "Build function to assemble newsletter from pipeline results and store in database",
+        "details": "In assemble-and-send Edge Function, implement assembly:\n\nasync function assembleNewsletter(teamId: string): Promise<Newsletter> {\n  // Get team data\n  const { data: team } = await supabase\n    .from('teams')\n    .select('*')\n    .eq('id', teamId)\n    .single();\n  \n  // Get latest articles for this team (from today's pipeline run)\n  const today = new Date();\n  today.setHours(0, 0, 0, 0);\n  \n  const { data: articles } = await supabase\n    .from('articles')\n    .select('*, sources(name)')\n    .eq('team_id', teamId)\n    .gte('created_at', today.toISOString())\n    .order('created_at', { ascending: false });\n  \n  // Rank and select articles\n  const selected = rankAndSelectArticles(articles);\n  \n  // Generate stat of the day\n  const stat = await generateStatOfTheDay(team.name, articles);\n  \n  // Render HTML template\n  const html = renderNewsletterTemplate({\n    team,\n    leadStory: selected.leadStory,\n    quickHits: selected.quickHits,\n    injuries: selected.injuries,\n    statOfDay: stat,\n    subscriber: null, // Will be filled per-subscriber\n    newsletter: null // Will be filled after insert\n  });\n  \n  // Generate subject line\n  const subjectLine = `${team.name} Morning Briefing — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;\n  \n  // Insert newsletter record\n  const { data: newsletter } = await supabase\n    .from('newsletters')\n    .insert({\n      team_id: teamId,\n      subject_line: subjectLine,\n      html_content: html,\n      status: 'draft'\n    })\n    .select()\n    .single();\n  \n  return newsletter;\n}\n\nReturn assembled newsletter ready for delivery.",
+        "testStrategy": "Run assembly for Seattle Seahawks and verify newsletter record created. Check HTML content includes all sections. Verify status='draft' initially. Test with edge cases (no articles, only injuries).",
+        "priority": "high",
+        "dependencies": [
+          "21",
+          "24"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "27",
+        "title": "Implement open tracking via 1px pixel",
+        "description": "Create tracking endpoint and embed pixel in email for open rate measurement",
+        "details": "Create Supabase Edge Function: supabase/functions/track-open/index.ts\n\nDeno.serve(async (req) => {\n  const url = new URL(req.url);\n  const newsletter_id = url.searchParams.get('newsletter_id');\n  const subscriber_id = url.searchParams.get('subscriber_id');\n  \n  // Update newsletter_metrics\n  const { data: existing } = await supabase\n    .from('newsletter_metrics')\n    .select('*')\n    .eq('newsletter_id', newsletter_id)\n    .eq('subscriber_id', subscriber_id)\n    .single();\n  \n  if (existing && !existing.opened_at) {\n    // First open - record timestamp\n    await supabase\n      .from('newsletter_metrics')\n      .update({ opened_at: new Date().toISOString() })\n      .eq('id', existing.id);\n  } else if (!existing) {\n    // Create metric record\n    await supabase\n      .from('newsletter_metrics')\n      .insert({\n        newsletter_id,\n        subscriber_id,\n        opened_at: new Date().toISOString()\n      });\n  }\n  \n  // Return transparent 1x1 pixel GIF\n  const pixel = Uint8Array.from([\n    0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00,\n    0x01, 0x00, 0x80, 0x00, 0x00, 0xFF, 0xFF, 0xFF,\n    0x00, 0x00, 0x00, 0x21, 0xF9, 0x04, 0x01, 0x00,\n    0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x00,\n    0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44,\n    0x01, 0x00, 0x3B\n  ]);\n  \n  return new Response(pixel, {\n    headers: {\n      'Content-Type': 'image/gif',\n      'Cache-Control': 'no-cache, no-store, must-revalidate'\n    }\n  });\n});\n\nEmbed in email template: <img src=\"[PIXEL_URL]\" width=\"1\" height=\"1\" alt=\"\" />",
+        "testStrategy": "Send test email and open it. Verify newsletter_metrics record created with opened_at timestamp. Test multiple opens and verify only first open recorded. Check pixel renders invisibly.",
+        "priority": "medium",
+        "dependencies": [
+          "24"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "28",
+        "title": "Implement feedback tracking endpoints",
+        "description": "Create thumbs up/down click tracking endpoints and update metrics",
+        "details": "Create Supabase Edge Function: supabase/functions/feedback/index.ts\n\nDeno.serve(async (req) => {\n  const url = new URL(req.url);\n  const newsletter_id = url.searchParams.get('newsletter_id');\n  const subscriber_id = url.searchParams.get('subscriber_id');\n  const feedback = url.searchParams.get('feedback'); // 'thumbs_up' or 'thumbs_down'\n  \n  // Update or insert newsletter_metrics\n  const { data: existing } = await supabase\n    .from('newsletter_metrics')\n    .select('*')\n    .eq('newsletter_id', newsletter_id)\n    .eq('subscriber_id', subscriber_id)\n    .single();\n  \n  if (existing) {\n    await supabase\n      .from('newsletter_metrics')\n      .update({ feedback })\n      .eq('id', existing.id);\n  } else {\n    await supabase\n      .from('newsletter_metrics')\n      .insert({\n        newsletter_id,\n        subscriber_id,\n        feedback\n      });\n  }\n  \n  // Redirect to thank you page\n  return Response.redirect(`https://[PROJECT-URL]/feedback-thanks?feedback=${feedback}`, 302);\n});\n\nCreate simple /feedback-thanks page:\n- Thumbs up: 'Thanks for the feedback! Glad you enjoyed today's briefing.'\n- Thumbs down: 'Thanks for the feedback. We'll work to improve.'\n- Link back to newsletter",
+        "testStrategy": "Click 👍 and 👎 links in test email. Verify metrics updated correctly. Test clicking multiple times and verify feedback can be changed. Verify redirect to thank you page works.",
+        "priority": "medium",
+        "dependencies": [
+          "27"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "29",
+        "title": "Implement batch email delivery via Resend",
+        "description": "Send assembled newsletter to all active subscribers using Resend API",
+        "details": "In assemble-and-send Edge Function, implement delivery:\n\nasync function sendNewsletter(newsletter: Newsletter, teamId: string): Promise<void> {\n  // Get all active subscribers for this team\n  const { data: subscribers } = await supabase\n    .from('subscribers')\n    .select('*')\n    .eq('team_id', teamId)\n    .eq('is_active', true);\n  \n  console.log(`Sending to ${subscribers.length} subscribers`);\n  \n  // Send in batches (Resend limits to 100/second)\n  const batchSize = 50;\n  for (let i = 0; i < subscribers.length; i += batchSize) {\n    const batch = subscribers.slice(i, i + batchSize);\n    \n    const sendPromises = batch.map(async (subscriber) => {\n      // Render personalized email (with subscriber-specific tracking)\n      const personalizedHtml = newsletter.html_content\n        .replace('{{subscriber_id}}', subscriber.id)\n        .replace('{{newsletter_id}}', newsletter.id);\n      \n      try {\n        const response = await fetch('https://api.resend.com/emails', {\n          method: 'POST',\n          headers: {\n            'Authorization': `Bearer ${Deno.env.get('RESEND_API_KEY')}`,\n            'Content-Type': 'application/json'\n          },\n          body: JSON.stringify({\n            from: 'NFL Wire <news@nflwire.com>',\n            to: subscriber.email,\n            subject: newsletter.subject_line,\n            html: personalizedHtml\n          })\n        });\n        \n        if (!response.ok) {\n          throw new Error(`Resend API error: ${response.status}`);\n        }\n        \n        // Create newsletter_metrics record\n        await supabase.from('newsletter_metrics').insert({\n          newsletter_id: newsletter.id,\n          subscriber_id: subscriber.id\n        });\n      } catch (error) {\n        console.error(`Failed to send to ${subscriber.email}:`, error);\n        // Continue with other subscribers\n      }\n    });\n    \n    await Promise.all(sendPromises);\n    \n    // Rate limiting delay between batches\n    if (i + batchSize < subscribers.length) {\n      await new Promise(resolve => setTimeout(resolve, 1000));\n    }\n  }\n  \n  // Update newsletter status\n  await supabase\n    .from('newsletters')\n    .update({ \n      status: 'sent', \n      sent_at: new Date().toISOString() \n    })\n    .eq('id', newsletter.id);\n}\n\nCall after assembly completes.",
+        "testStrategy": "Send newsletter to test subscribers. Verify all receive email. Check Resend dashboard for delivery status. Test with large subscriber list (100+) to verify batching works. Check rate limiting doesn't cause errors.",
+        "priority": "high",
+        "dependencies": [
+          "26",
+          "9"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "30",
+        "title": "Create complete assemble-and-send orchestration",
+        "description": "Combine assembly and delivery into single Edge Function triggered after pipeline",
+        "details": "Complete assemble-and-send Edge Function:\n\nDeno.serve(async (req) => {\n  // Get all active teams\n  const { data: teams } = await supabase\n    .from('teams')\n    .select('*')\n    .eq('is_active', true);\n  \n  const results = [];\n  \n  for (const team of teams) {\n    try {\n      console.log(`Assembling newsletter for ${team.name}`);\n      \n      // Assemble newsletter\n      const newsletter = await assembleNewsletter(team.id);\n      \n      // Send to subscribers\n      await sendNewsletter(newsletter, team.id);\n      \n      results.push({\n        team_id: team.id,\n        status: 'sent',\n        newsletter_id: newsletter.id\n      });\n      \n      console.log(`Newsletter sent for ${team.name}`);\n    } catch (error) {\n      console.error(`Newsletter failed for ${team.name}:`, error);\n      results.push({\n        team_id: team.id,\n        status: 'failed',\n        error: error.message\n      });\n    }\n  }\n  \n  return new Response(JSON.stringify({ results }));\n});\n\nConfigure cron to trigger this function after run-content-pipeline completes (6:00 AM + pipeline duration, ~6:15 AM).",
+        "testStrategy": "Manually trigger function and verify newsletters assembled and sent for all active teams. Check logs for timing. Verify failure in one team doesn't block others. Test end-to-end: pipeline → assembly → delivery.",
+        "priority": "high",
+        "dependencies": [
+          "29"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "31",
+        "title": "Set up Supabase Auth for admin access",
+        "description": "Configure authentication and role-based access control for admin dashboard",
+        "details": "Enable Supabase Auth in project. Configure email auth provider. Create admin user manually in Supabase dashboard. Add custom claim for admin role:\n\n-- Create admin_users table\nCREATE TABLE admin_users (\n  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),\n  user_id uuid REFERENCES auth.users(id),\n  email text UNIQUE,\n  created_at timestamp DEFAULT now()\n);\n\n-- Insert admin user(s)\nINSERT INTO admin_users (user_id, email) VALUES ('[AUTH-USER-ID]', 'admin@nflwire.com');\n\n-- Create RLS policy to check admin access\nCREATE POLICY \"Admin access only\" ON [TABLE-NAME]\n  FOR ALL\n  USING (EXISTS (\n    SELECT 1 FROM admin_users\n    WHERE admin_users.user_id = auth.uid()\n  ));\n\nInstall auth helpers: `npm install @supabase/auth-helpers-react`. Create src/lib/auth.tsx with AuthProvider and useAuth hook. Create src/components/ProtectedRoute.tsx that checks isAdmin before rendering admin pages.",
+        "testStrategy": "Log in as admin user and verify auth session created. Try accessing admin routes as non-admin and verify blocked. Test logout and re-login flow.",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "32",
+        "title": "Create admin dashboard layout and navigation",
+        "description": "Build main admin dashboard structure with navigation between views",
+        "details": "Create src/pages/admin/Dashboard.tsx as main admin layout. Use React Router for client-side routing:\n\n- /admin - redirect to /admin/sources\n- /admin/sources - Source Queue view\n- /admin/preview - Content Preview view\n- /admin/insights - Subscriber Insights view\n- /admin/logs - Validation Logs view\n\nImplement sidebar navigation (fixed left side) with links to each view. Use Tailwind for styling: dark sidebar (#1a1a1a), active link highlighted with team accent color. Add NFL Wire logo at top, admin email at bottom. Implement mobile responsive: hamburger menu for sidebar on mobile. Add logout button in sidebar. Wrap entire /admin/* routes with ProtectedRoute component.",
+        "testStrategy": "Navigate between admin views and verify routing works. Test responsive behavior on mobile. Verify logout redirects to login. Test deep linking (direct URL access to /admin/insights).",
+        "priority": "high",
+        "dependencies": [
+          "31"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "33",
+        "title": "Implement Source Queue view",
+        "description": "Build admin interface to review, approve, and reject pending sources",
+        "details": "Create src/pages/admin/SourceQueue.tsx. Query sources table:\n\nconst { data: sources } = await supabase\n  .from('sources')\n  .select('*, teams(name)')\n  .in('status', ['pending', 'flagged'])\n  .order('created_at', { ascending: false });\n\nDisplay in table:\n- Columns: URL (truncated, clickable), Team, Type, Status (badge), Relevance Score, Submitted By, Date\n- Filters: dropdown for status (All/Pending/Flagged), team multi-select, type multi-select\n- Actions per row: Approve (green button), Reject (red button), Override (blue button - reopens validation)\n\nOn Approve:\n- Update status to 'approved'\n- Show success toast\n- Remove from list\n\nOn Reject:\n- Show modal: 'Reason for rejection?' (textarea)\n- Update status to 'rejected'\n- Send rejection email to submitted_by\n- Remove from list\n\nOn Override:\n- Show modal with current validation results\n- Allow manual relevance_score adjustment\n- Re-run validation pipeline\n\nImplement pagination (50 per page). Add bulk actions (select multiple, approve/reject all).",
+        "testStrategy": "Submit test sources and verify they appear in queue. Test approve/reject/override actions. Verify filters work correctly. Test bulk actions with multiple selections. Check rejection emails sent.",
+        "priority": "high",
+        "dependencies": [
+          "32",
+          "13"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "34",
+        "title": "Implement Content Preview view",
+        "description": "Build interface to preview and edit assembled newsletter before sending",
+        "details": "Create src/pages/admin/ContentPreview.tsx. Add team selector dropdown (filter to active teams). Query today's assembled newsletter:\n\nconst { data: newsletter } = await supabase\n  .from('newsletters')\n  .select('*, teams(*)')\n  .eq('team_id', selectedTeamId)\n  .eq('status', 'draft')\n  .order('created_at', { ascending: false })\n  .limit(1)\n  .single();\n\nDisplay:\n- Subject line (editable inline)\n- Full HTML preview (iframe rendering newsletter.html_content)\n- Article list (left sidebar) showing lead story, quick hits, injuries with ability to:\n  - Remove article (X icon)\n  - Reorder (drag-and-drop or up/down arrows)\n  - Regenerate summary (refresh icon - calls Claude API again)\n- Stat of the Day (editable)\n\nActions:\n- Send Now button (calls assemble-and-send function immediately)\n- Schedule button (allows selecting future date/time)\n- Save Draft (updates newsletter record)\n- Discard Draft (deletes newsletter record)\n\nShow subscriber count for selected team. Add preview on mobile toggle (switch iframe viewport).",
+        "testStrategy": "Load preview for Seattle Seahawks and verify newsletter displays. Test editing subject line. Test removing an article and verify preview updates. Test Send Now and verify emails delivered. Test scheduling for future time.",
+        "priority": "high",
+        "dependencies": [
+          "32",
+          "26"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "35",
+        "title": "Implement Subscriber Insights view",
+        "description": "Build analytics dashboard showing key engagement metrics per team",
+        "details": "Create src/pages/admin/SubscriberInsights.tsx. Add team selector (All Teams or specific team). Query metrics:\n\n// Total subscribers\nconst { count: totalSubs } = await supabase\n  .from('subscribers')\n  .select('*', { count: 'exact', head: true })\n  .eq('is_active', true)\n  .eq('team_id', selectedTeamId);\n\n// Day 1 open rate (last newsletter)\nconst { data: lastNewsletter } = await supabase\n  .from('newsletters')\n  .select('id, sent_at')\n  .eq('team_id', selectedTeamId)\n  .eq('status', 'sent')\n  .order('sent_at', { ascending: false })\n  .limit(1)\n  .single();\n\nconst { count: opened } = await supabase\n  .from('newsletter_metrics')\n  .select('*', { count: 'exact', head: true })\n  .eq('newsletter_id', lastNewsletter.id)\n  .not('opened_at', 'is', null);\n\nconst openRate = (opened / totalSubs) * 100;\n\n// 5-of-7 weekly engagement (north star metric)\nconst lastWeekNewsletters = [...]; // Get last 7 newsletters\nconst subscribersWhoOpened5Plus = [...]; // Calculate per subscriber\nconst weeklyEngagement = (subscribersWhoOpened5Plus.length / totalSubs) * 100;\n\n// Satisfaction rate\nconst { count: thumbsUp } = await supabase\n  .from('newsletter_metrics')\n  .select('*', { count: 'exact', head: true })\n  .eq('feedback', 'thumbs_up')\n  .gte('created_at', sevenDaysAgo);\n\nconst { count: thumbsDown } = await supabase\n  .from('newsletter_metrics')\n  .select('*', { count: 'exact', head: true })\n  .eq('feedback', 'thumbs_down')\n  .gte('created_at', sevenDaysAgo);\n\nconst satisfaction = (thumbsUp / (thumbsUp + thumbsDown)) * 100;\n\n// Churned subscribers\nconst { data: churned } = await supabase\n  .from('subscribers')\n  .select('*')\n  .eq('is_active', false)\n  .gte('updated_at', sevenDaysAgo);\n\nDisplay as cards:\n- Total Active Subscribers (number + trend)\n- Day 1 Open Rate (percentage + benchmark: >50%)\n- 5-of-7 Weekly Engagement (percentage + benchmark: >40%)\n- Satisfaction Rate (percentage + benchmark: >70%)\n- Churned This Week (number + list)\n\nAdd charts:\n- Open rate trend (last 30 days) - line chart\n- Feedback distribution (pie chart: thumbs up vs down)\n- Subscribers by team (bar chart)\n\nUse recharts library for visualization: `npm install recharts`.",
+        "testStrategy": "View insights for Seattle Seahawks and verify metrics calculate correctly. Test with multiple newsletters and verify weekly engagement logic. Test team selector and verify metrics update. Check charts render correctly.",
+        "priority": "high",
+        "dependencies": [
+          "32",
+          "27",
+          "28"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "36",
+        "title": "Implement Validation Logs view",
+        "description": "Build detailed log viewer for source validation pipeline results",
+        "details": "Create src/pages/admin/ValidationLogs.tsx. Create validation_logs table:\n\nCREATE TABLE validation_logs (\n  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),\n  source_id uuid REFERENCES sources(id),\n  check_1_result text, -- 'passed' | 'failed'\n  check_1_reason text,\n  check_2_result text,\n  check_2_confidence integer,\n  final_status text,\n  created_at timestamp DEFAULT now()\n);\n\nUpdate validate-source function to insert log on every run.\n\nQuery logs:\nconst { data: logs } = await supabase\n  .from('validation_logs')\n  .select('*, sources(url, teams(name))')\n  .order('created_at', { ascending: false })\n  .range(0, 99); // Pagination\n\nDisplay in table:\n- Columns: Source URL, Team, Check 1 (icon: ✓/✗ + reason tooltip), Check 2 (confidence bar + icon), Final Status (badge), Date\n- Filters: date range picker, team select, outcome (All/Approved/Rejected/Flagged)\n- Search: filter by URL substring\n\nImplement expandable rows - click to see full validation details:\n- Raw check results\n- Claude API prompt and response\n- Timestamp breakdown\n\nAdd export to CSV button. Implement pagination (100 logs per page).",
+        "testStrategy": "Run validation pipeline and verify logs created. View logs in admin and verify all data displays correctly. Test filters and search. Test expandable rows. Export CSV and verify format.",
+        "priority": "medium",
+        "dependencies": [
+          "32",
+          "13"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "37",
+        "title": "Create unsubscribe flow",
+        "description": "Build unsubscribe page and endpoint to deactivate subscribers",
+        "details": "Create src/pages/Unsubscribe.tsx. Read subscriber_id from URL query param. Query subscriber:\n\nconst { data: subscriber } = await supabase\n  .from('subscribers')\n  .select('*, teams(name, logo_url)')\n  .eq('id', subscriberId)\n  .single();\n\nDisplay:\n- 'Sorry to see you go' heading\n- Team logo and name\n- Confirmation message: 'You'll no longer receive {team_name} newsletters'\n- Optional feedback form: 'Why are you leaving?' (textarea, optional)\n- Unsubscribe button (primary CTA)\n- 'Never mind, keep me subscribed' link\n\nOn Unsubscribe click:\n- Update subscriber: is_active = false\n- Store feedback if provided\n- Show success message: 'You're unsubscribed. You can resubscribe anytime.'\n- Send confirmation email\n\nAdd resubscribe page (/resubscribe?subscriber_id=xxx) that reverses the action.",
+        "testStrategy": "Click unsubscribe link in test email and verify page loads correctly. Complete unsubscribe and verify is_active set to false. Verify no more emails received. Test resubscribe and verify is_active set to true.",
+        "priority": "medium",
+        "dependencies": [
+          "8"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "38",
+        "title": "Implement admin notification system",
+        "description": "Create email alerts for admin on flagged sources and pipeline errors",
+        "details": "Create notification helper in _shared/notify-admin.ts:\n\nasync function notifyAdmin(notification: {\n  type: 'source_flagged' | 'pipeline_error' | 'low_relevance_source',\n  data: any\n}): Promise<void> {\n  const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'admin@nflwire.com';\n  \n  let subject = '';\n  let html = '';\n  \n  switch (notification.type) {\n    case 'source_flagged':\n      subject = `Source Flagged: ${notification.data.url}`;\n      html = `\n        <h2>Source requires review</h2>\n        <p><strong>URL:</strong> ${notification.data.url}</p>\n        <p><strong>Team:</strong> ${notification.data.teamName}</p>\n        <p><strong>Confidence:</strong> ${notification.data.confidence}%</p>\n        <p><strong>Reason:</strong> ${notification.data.reason}</p>\n        <a href=\"https://[PROJECT-URL]/admin/sources\">Review in Admin</a>\n      `;\n      break;\n    \n    case 'pipeline_error':\n      subject = `Pipeline Error: ${notification.data.teamName}`;\n      html = `\n        <h2>Content pipeline failed</h2>\n        <p><strong>Team:</strong> ${notification.data.teamName}</p>\n        <p><strong>Error:</strong> ${notification.data.error}</p>\n        <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>\n      `;\n      break;\n    \n    case 'low_relevance_source':\n      subject = `Low Relevance Source: ${notification.data.sourceId}`;\n      html = `\n        <h2>Source has high discard rate</h2>\n        <p><strong>Source ID:</strong> ${notification.data.sourceId}</p>\n        <p><strong>Team:</strong> ${notification.data.teamName}</p>\n        <p><strong>Discard Rate:</strong> ${(notification.data.discardRate * 100).toFixed(1)}%</p>\n        <a href=\"https://[PROJECT-URL]/admin/sources\">Review in Admin</a>\n      `;\n      break;\n  }\n  \n  await fetch('https://api.resend.com/emails', {\n    method: 'POST',\n    headers: {\n      'Authorization': `Bearer ${Deno.env.get('RESEND_API_KEY')}`,\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify({\n      from: 'NFL Wire Alerts <alerts@nflwire.com>',\n      to: adminEmail,\n      subject,\n      html\n    })\n  });\n}\n\nIntegrate into validation and pipeline functions.",
+        "testStrategy": "Trigger each notification type (submit flagged source, cause pipeline error, trigger low relevance). Verify admin receives emails with correct content. Test notification doesn't block main function execution.",
+        "priority": "low",
+        "dependencies": [
+          "10",
+          "9"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "39",
+        "title": "Configure custom fonts (Playfair, DM Sans, Source Serif)",
+        "description": "Set up typography system with specified editorial fonts",
+        "details": "Add Google Fonts to index.html:\n\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n<link href=\"https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;700&family=Source+Serif+4:wght@400;600&display=swap\" rel=\"stylesheet\">\n\nUpdate tailwind.config.js:\n\nmodule.exports = {\n  theme: {\n    extend: {\n      fontFamily: {\n        'headline': ['Playfair Display', 'Georgia', 'serif'],\n        'ui': ['DM Sans', 'sans-serif'],\n        'body': ['Source Serif 4', 'Georgia', 'serif']\n      }\n    }\n  }\n}\n\nApply throughout app:\n- Headlines (h1, h2): font-headline\n- UI elements (buttons, nav, forms): font-ui\n- Body text (articles, descriptions): font-body\n\nFor email template, use web-safe fallbacks since custom fonts may not load in all email clients.",
+        "testStrategy": "Load app and verify custom fonts render correctly. Check fallbacks work when fonts blocked. Test font weights (bold, regular). Verify email templates use web-safe fonts.",
+        "priority": "low",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T20:44:44.768Z"
+      },
+      {
+        "id": "40",
+        "title": "Implement error handling and logging",
+        "description": "Add comprehensive error handling and structured logging across all functions",
+        "details": "Create error handling utilities in src/lib/errors.ts:\n\nclass AppError extends Error {\n  constructor(\n    public code: string,\n    message: string,\n    public statusCode: number = 500,\n    public metadata?: any\n  ) {\n    super(message);\n    this.name = 'AppError';\n  }\n}\n\nfunction logError(error: Error | AppError, context: string): void {\n  console.error(`[${context}] ${error.message}`, {\n    name: error.name,\n    stack: error.stack,\n    ...(error instanceof AppError ? { code: error.code, metadata: error.metadata } : {})\n  });\n  \n  // Optional: Send to error tracking service (Sentry, etc.)\n}\n\nWrap all Edge Function handlers with try-catch:\n\nDeno.serve(async (req) => {\n  try {\n    // ... function logic\n  } catch (error) {\n    logError(error, 'validate-source');\n    \n    return new Response(\n      JSON.stringify({ \n        error: error.message,\n        code: error instanceof AppError ? error.code : 'INTERNAL_ERROR'\n      }),\n      { \n        status: error instanceof AppError ? error.statusCode : 500,\n        headers: { 'Content-Type': 'application/json' }\n      }\n    );\n  }\n});\n\nAdd structured logging:\n- Function entry: log input params\n- Key operations: log progress (fetched N articles, processed N sources)\n- Function exit: log result summary\n- Errors: log full context\n\nConfigure Supabase logging level in dashboard.",
+        "testStrategy": "Trigger various error scenarios (invalid API key, database connection failure, timeout). Verify errors logged with full context. Check error responses have correct status codes. Verify app doesn't crash on errors.",
+        "priority": "medium",
+        "dependencies": [
+          "10"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "41",
+        "title": "Implement rate limiting for Claude API",
+        "description": "Add request throttling to avoid hitting Anthropic API rate limits",
+        "details": "Create rate limiter in _shared/anthropic-client.ts:\n\nclass RateLimiter {\n  private queue: Array<() => Promise<any>> = [];\n  private processing = false;\n  private requestsPerMinute = 50; // Adjust based on Anthropic limits\n  private minDelay = 60000 / this.requestsPerMinute; // ms between requests\n  private lastRequestTime = 0;\n  \n  async execute<T>(fn: () => Promise<T>): Promise<T> {\n    return new Promise((resolve, reject) => {\n      this.queue.push(async () => {\n        try {\n          const result = await fn();\n          resolve(result);\n        } catch (error) {\n          reject(error);\n        }\n      });\n      \n      this.processQueue();\n    });\n  }\n  \n  private async processQueue(): Promise<void> {\n    if (this.processing || this.queue.length === 0) return;\n    \n    this.processing = true;\n    \n    while (this.queue.length > 0) {\n      const now = Date.now();\n      const timeSinceLastRequest = now - this.lastRequestTime;\n      \n      if (timeSinceLastRequest < this.minDelay) {\n        await new Promise(resolve => \n          setTimeout(resolve, this.minDelay - timeSinceLastRequest)\n        );\n      }\n      \n      const fn = this.queue.shift();\n      this.lastRequestTime = Date.now();\n      await fn();\n    }\n    \n    this.processing = false;\n  }\n}\n\nconst rateLimiter = new RateLimiter();\n\nexport async function callClaude(prompt: string): Promise<any> {\n  return rateLimiter.execute(async () => {\n    const response = await fetch('https://api.anthropic.com/v1/messages', {\n      method: 'POST',\n      headers: {\n        'Content-Type': 'application/json',\n        'x-api-key': Deno.env.get('ANTHROPIC_API_KEY'),\n        'anthropic-version': '2023-06-01'\n      },\n      body: JSON.stringify({\n        model: 'claude-3-haiku-20240307',\n        max_tokens: 300,\n        messages: [{ role: 'user', content: prompt }]\n      })\n    });\n    \n    if (response.status === 429) {\n      throw new Error('Rate limit exceeded');\n    }\n    \n    return response.json();\n  });\n}\n\nUse callClaude() instead of direct fetch in all functions.",
+        "testStrategy": "Process 100+ articles in pipeline and verify rate limiting prevents 429 errors. Monitor request timing and verify min delay enforced. Test queue processing completes successfully.",
+        "priority": "medium",
+        "dependencies": [
+          "10",
+          "18"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "42",
+        "title": "Add Row Level Security policies",
+        "description": "Implement RLS policies to secure all database tables",
+        "details": "Enable RLS on all tables:\n\nALTER TABLE teams ENABLE ROW LEVEL SECURITY;\nALTER TABLE subscribers ENABLE ROW LEVEL SECURITY;\nALTER TABLE sources ENABLE ROW LEVEL SECURITY;\nALTER TABLE articles ENABLE ROW LEVEL SECURITY;\nALTER TABLE newsletters ENABLE ROW LEVEL SECURITY;\nALTER TABLE newsletter_metrics ENABLE ROW LEVEL SECURITY;\nALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;\n\nCreate policies:\n\n-- teams: public read, admin write\nCREATE POLICY \"Public read teams\" ON teams FOR SELECT USING (true);\nCREATE POLICY \"Admin write teams\" ON teams FOR ALL USING (EXISTS (SELECT 1 FROM admin_users WHERE admin_users.user_id = auth.uid()));\n\n-- subscribers: users can read/update their own, service role full access\nCREATE POLICY \"Service role full access subscribers\" ON subscribers FOR ALL USING (auth.jwt()->>'role' = 'service_role');\nCREATE POLICY \"Users read own subscriber\" ON subscribers FOR SELECT USING (email = auth.jwt()->>'email');\nCREATE POLICY \"Users update own subscriber\" ON subscribers FOR UPDATE USING (email = auth.jwt()->>'email');\n\n-- sources: admin full access, users can submit\nCREATE POLICY \"Admin full access sources\" ON sources FOR ALL USING (EXISTS (SELECT 1 FROM admin_users WHERE admin_users.user_id = auth.uid()));\nCREATE POLICY \"Service role full access sources\" ON sources FOR ALL USING (auth.jwt()->>'role' = 'service_role');\nCREATE POLICY \"Users submit sources\" ON sources FOR INSERT WITH CHECK (true);\n\n-- articles: public read (for newsletter assembly), service role write\nCREATE POLICY \"Public read articles\" ON articles FOR SELECT USING (true);\nCREATE POLICY \"Service role full access articles\" ON articles FOR ALL USING (auth.jwt()->>'role' = 'service_role');\n\n-- newsletters: service role and admin access\nCREATE POLICY \"Service role full access newsletters\" ON newsletters FOR ALL USING (auth.jwt()->>'role' = 'service_role');\nCREATE POLICY \"Admin read newsletters\" ON newsletters FOR SELECT USING (EXISTS (SELECT 1 FROM admin_users WHERE admin_users.user_id = auth.uid()));\n\n-- newsletter_metrics: service role access, subscribers can read own\nCREATE POLICY \"Service role full access metrics\" ON newsletter_metrics FOR ALL USING (auth.jwt()->>'role' = 'service_role');\nCREATE POLICY \"Admin read metrics\" ON newsletter_metrics FOR SELECT USING (EXISTS (SELECT 1 FROM admin_users WHERE admin_users.user_id = auth.uid()));\n\n-- admin_users: only accessible to existing admins\nCREATE POLICY \"Admin access only\" ON admin_users FOR ALL USING (EXISTS (SELECT 1 FROM admin_users WHERE admin_users.user_id = auth.uid()));\n\nTest policies thoroughly.",
+        "testStrategy": "Attempt to access tables as anonymous user, authenticated non-admin, and admin. Verify permissions enforced correctly. Test Edge Functions with service role key and verify full access. Try unauthorized operations and verify blocked.",
+        "priority": "high",
+        "dependencies": [
+          "3",
+          "31"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "43",
+        "title": "Create environment-specific configurations",
+        "description": "Set up development, staging, and production environment configurations",
+        "details": "Create environment config files:\n\n// src/config/env.ts\nconst configs = {\n  development: {\n    supabaseUrl: import.meta.env.VITE_SUPABASE_URL,\n    supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,\n    apiUrl: 'http://localhost:54321/functions/v1',\n    appUrl: 'http://localhost:5173',\n    enableDebugLogs: true\n  },\n  staging: {\n    supabaseUrl: import.meta.env.VITE_SUPABASE_URL,\n    supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,\n    apiUrl: 'https://[staging-project].supabase.co/functions/v1',\n    appUrl: 'https://staging.nflwire.com',\n    enableDebugLogs: true\n  },\n  production: {\n    supabaseUrl: import.meta.env.VITE_SUPABASE_URL,\n    supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,\n    apiUrl: 'https://[prod-project].supabase.co/functions/v1',\n    appUrl: 'https://nflwire.com',\n    enableDebugLogs: false\n  }\n};\n\nconst env = import.meta.env.MODE as keyof typeof configs;\nexport const config = configs[env] || configs.development;\n\nUpdate Vercel project settings:\n- Create separate projects for staging and production\n- Configure environment variables per project\n- Set up preview deployments for staging\n- Configure custom domains\n\nUpdate Edge Functions to use environment-specific URLs and settings.",
+        "testStrategy": "Deploy to staging and verify correct config used. Test API endpoints resolve correctly. Deploy to production and verify production config. Test environment variable injection in each environment.",
+        "priority": "medium",
+        "dependencies": [
+          "5"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T20:44:44.775Z"
+      },
+      {
+        "id": "44",
+        "title": "Write integration tests for critical flows",
+        "description": "Create automated tests for signup, validation, pipeline, and delivery flows",
+        "details": "Install testing libraries: `npm install -D vitest @testing-library/react @testing-library/user-event jsdom @supabase/supabase-js`. Create test files:\n\n// tests/signup.test.ts\nimport { describe, it, expect } from 'vitest';\nimport { render, screen, fireEvent } from '@testing-library/react';\nimport Signup from '../src/pages/Signup';\n\ndescribe('Signup Flow', () => {\n  it('validates email format', async () => {\n    render(<Signup />);\n    const input = screen.getByLabelText('Email');\n    fireEvent.change(input, { target: { value: 'invalid-email' } });\n    fireEvent.submit(screen.getByRole('form'));\n    expect(screen.getByText(/invalid email/i)).toBeInTheDocument();\n  });\n  \n  it('creates subscriber on valid submission', async () => {\n    // Mock Supabase client\n    // Submit form\n    // Verify subscriber created\n  });\n});\n\n// tests/edge-functions/validate-source.test.ts\nimport { describe, it, expect } from 'vitest';\n\ndescribe('Source Validation', () => {\n  it('rejects unreachable URLs', async () => {\n    const result = await checkReachability('https://invalid-url-12345.com');\n    expect(result.reachable).toBe(false);\n  });\n  \n  it('approves team-specific sources with high confidence', async () => {\n    const result = await checkTeamRelevance('https://seahawks-blog.com', 'Seattle Seahawks');\n    expect(result.confidence).toBeGreaterThan(60);\n  });\n});\n\n// tests/edge-functions/content-pipeline.test.ts\n// Test article fetching, filtering, summarization, ranking\n\n// tests/edge-functions/assemble-and-send.test.ts\n// Test newsletter assembly and email delivery\n\nConfigure Vitest in vite.config.ts:\n\nexport default defineConfig({\n  test: {\n    environment: 'jsdom',\n    setupFiles: ['./tests/setup.ts']\n  }\n});\n\nAdd test scripts to package.json:\n\"scripts\": {\n  \"test\": \"vitest\",\n  \"test:ui\": \"vitest --ui\",\n  \"test:coverage\": \"vitest --coverage\"\n}",
+        "testStrategy": "Run `npm test` and verify all tests pass. Aim for >70% code coverage on critical paths. Run tests in CI/CD pipeline before deployment. Fix failing tests before merging.",
+        "priority": "medium",
+        "dependencies": [
+          "8",
+          "13",
+          "21",
+          "30"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "45",
+        "title": "Create README and deployment documentation",
+        "description": "Write comprehensive documentation for setup, deployment, and maintenance",
+        "details": "Create README.md with sections:\n\n# NFL Wire\n\nDaily team-specific NFL newsletter delivering 5-minute morning briefings.\n\n## Features\n- All 32 NFL teams supported\n- AI-powered article summarization\n- Automated source validation\n- Admin dashboard for content management\n- Daily delivery at 6:00 AM\n\n## Tech Stack\n- Frontend: React + Vite + Tailwind CSS\n- Backend: Supabase (PostgreSQL, Edge Functions, Auth)\n- Email: Resend\n- AI: Anthropic Claude API\n- Deployment: Vercel\n\n## Setup\n\n### Prerequisites\n- Node.js 18+\n- Supabase account\n- Resend account\n- Anthropic API key\n\n### Installation\n1. Clone repository: `git clone ...`\n2. Install dependencies: `npm install`\n3. Copy `.env.example` to `.env` and fill in values\n4. Run database migrations: `supabase db push`\n5. Seed teams data: `npm run seed`\n6. Start dev server: `npm run dev`\n\n### Deployment\n1. Push to GitHub\n2. Connect repository to Vercel\n3. Configure environment variables\n4. Deploy Edge Functions: `supabase functions deploy --project-ref [REF]`\n5. Set up cron jobs in Supabase dashboard\n\n## Configuration\n\n### Environment Variables\n[List all required env vars with descriptions]\n\n### Cron Jobs\n- Content Pipeline: 6:00 AM daily\n- Newsletter Delivery: 6:15 AM daily\n\n## Maintenance\n\n### Adding New Sources\n1. Users submit via form\n2. Automated validation runs\n3. Admin approves/rejects in dashboard\n\n### Monitoring\n- Check admin dashboard for metrics\n- Review validation logs for issues\n- Monitor error notifications\n\n### Common Issues\n[List troubleshooting steps]\n\n## Architecture\n[Diagram showing system components and data flow]\n\n## Contributing\n[Guidelines if applicable]\n\n## License\n[License info]\n\nAlso create docs/ folder with:\n- API.md: Edge Function documentation\n- DATABASE.md: Schema documentation\n- DEPLOYMENT.md: Detailed deployment guide\n- TROUBLESHOOTING.md: Common issues and solutions",
+        "testStrategy": "Follow README instructions on fresh machine to verify setup works. Have colleague review documentation for clarity. Test all commands and links.",
+        "priority": "low",
+        "dependencies": [
+          "1",
+          "2",
+          "3"
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-03-12T21:03:46.890Z",
+      "taskCount": 45,
+      "completedCount": 13,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}
