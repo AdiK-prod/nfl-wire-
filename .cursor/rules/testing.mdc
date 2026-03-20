@@ -1,0 +1,9 @@
+---
+description: Run automated tests after substantive code changes
+globs: src/**/*.{ts,tsx}, vite.config.ts, package.json
+alwaysApply: true
+---
+
+- **After meaningful changes** (features, refactors, new routes, auth, or Supabase usage), run `npm run test` and `npm run build` before considering work complete.
+- **When adding UI or hooks**, add or extend Vitest + Testing Library tests under `src/**/*.test.tsx`; mock `../lib/supabase` with `vi.hoisted` when needed.
+- **Do not** leave `test` script as a no-op; keep `npm run test` running the Vitest suite.

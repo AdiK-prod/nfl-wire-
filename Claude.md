@@ -8,13 +8,42 @@ Subscribers pick their team → receive a curated 5-minute morning briefing ever
 First active team: Seattle Seahawks (#002244 / #69BE28 / #A5ACAF).
 
 ## Current Development Phase
-⬜ Phase 1 — Foundation (Project setup, DB schema, seed data)
-⬜ Phase 2 — Source Validation Engine
-⬜ Phase 3 — Content Pipeline & AI Summarization
-⬜ Phase 4 — Newsletter Assembly & Delivery
+✅ Phase 1 — Foundation (Project setup, DB schema, seed data)
+✅ Phase 2 — Source Validation Engine
+✅ Phase 3 — Content Pipeline & AI Summarization
+⬜ Phase 4 — Newsletter Assembly & Delivery ← ACTIVE
 ⬜ Phase 5 — Admin Dashboard
 
-Update the checkboxes above as phases complete.
+## Completed Tasks
+- 1: Initialize React + Vite + Tailwind project
+- 2: Configure Supabase project and environment variables
+- 3: Create database schema and migrations
+- 4: Seed all 32 NFL teams data
+- 5: Set up Vercel deployment configuration
+- 6: Install and configure TypeScript types
+- 7: Design and implement landing page with team selection
+- 8: Create email signup form component
+- 10: Create Supabase Edge Function scaffold
+- 11: Implement source reachability check (validation check 1)
+- 12: Implement AI-based team relevance check (validation check 2)
+- 13: Build source validation orchestration
+- 14: Create source submission form
+- 15: Seed global approved sources
+- 16: Implement article fetching and deduplication
+- 17: Implement article filtering by team relevance
+- 18: Implement AI article summarization and categorization
+- 19: Implement article ranking and selection logic
+- 20: Implement AI-generated stat of the day
+- 21: Create multi-team pipeline orchestration
+- 22: Set up cron schedule for daily pipeline execution
+- 38: Implement admin notification system
+- 39: Configure custom fonts (Playfair, DM Sans, Source Serif)
+- 43: Create environment-specific configurations
+
+## Pending
+- Phase 4: Newsletter Assembly & Delivery (next up)
+- Phase 5: Admin Dashboard
+- ⚠️ Task 9 not in completed list — verify status with: task-master show 9
 
 ## Stack
 - React + Vite + Tailwind CSS (frontend)

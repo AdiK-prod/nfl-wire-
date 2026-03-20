@@ -1,5 +1,12 @@
 import { supabase } from '../_shared/supabase-client.ts';
 import { callClaudeJSON } from '../_shared/anthropic-client.ts';
+import { notifyAdmin } from '../_shared/notify-admin.ts';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 interface ReachabilityResult {
   reachable: boolean;
@@ -52,10 +59,10 @@ async function checkTeamRelevance(url: string, teamName: string): Promise<Releva
   const html = await response.text();
 
   const textContent = html
-    .replace(/<script[^>]*>.*?<\\/script>/gi, '')
-    .replace(/<style[^>]*>.*?<\\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/\\s+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 4000);
 
@@ -75,7 +82,7 @@ async function checkTeamRelevance(url: string, teamName: string): Promise<Releva
     'Reply with JSON only: { "relevant": true/false, "confidence": 0-100 }',
     '',
     `Content: ${textContent}`,
-  ].join('\\n');
+  ].join('\n');
 
   const parsed = await callClaudeJSON<{ relevant: boolean; confidence: number }>([
     { role: 'user', content: prompt },
@@ -88,10 +95,14 @@ async function checkTeamRelevance(url: string, teamName: string): Promise<Releva
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -100,7 +111,7 @@ Deno.serve(async (req) => {
     if (!source_id) {
       return new Response(JSON.stringify({ error: 'source_id is required' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -113,7 +124,7 @@ Deno.serve(async (req) => {
     if (sourceError || !source) {
       return new Response(JSON.stringify({ error: 'Source not found' }), {
         status: 404,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -128,7 +139,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ status: 'rejected', reason: reachResult.reason }),
         {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         },
       );
     }
@@ -149,6 +160,18 @@ Deno.serve(async (req) => {
         })
         .eq('id', source_id);
 
+      if (finalStatus === 'flagged') {
+        notifyAdmin({
+          type: 'source_flagged',
+          data: {
+            url: source.url,
+            teamName,
+            confidence: relevance.confidence,
+            reason: relevance.reason,
+          },
+        }).catch((err) => console.error('[validate-source] notifyAdmin failed', err));
+      }
+
       return new Response(
         JSON.stringify({
           status: finalStatus,
@@ -156,7 +179,7 @@ Deno.serve(async (req) => {
         }),
         {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         },
       );
     }
@@ -168,7 +191,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ status: 'approved' }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('[validate-source] error', error);
@@ -176,7 +199,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: 'Internal error in validate-source' }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       },
     );
   }

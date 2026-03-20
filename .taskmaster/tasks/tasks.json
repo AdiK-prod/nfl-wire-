@@ -97,8 +97,9 @@
           "4",
           "6"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T22:30:00.000Z"
       },
       {
         "id": "8",
@@ -110,8 +111,9 @@
         "dependencies": [
           "7"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T22:30:00.000Z"
       },
       {
         "id": "9",
@@ -123,8 +125,9 @@
         "dependencies": [
           "8"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-18T11:27:32.934Z"
       },
       {
         "id": "10",
@@ -193,8 +196,9 @@
         "dependencies": [
           "13"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-12T22:00:00.000Z"
       },
       {
         "id": "15",
@@ -215,6 +219,8 @@
         "id": "16",
         "title": "Implement article fetching and deduplication",
         "description": "Build article scraper that fetches content from approved sources and removes duplicates",
+        "status": "done",
+        "updatedAt": "2026-03-13T00:00:00.000Z",
         "details": "In run-content-pipeline Edge Function, implement Step 1 (Fetch):\n\nasync function fetchArticles(teamId: string): Promise<Article[]> {\n  // Get approved sources for team\n  const { data: sources } = await supabase\n    .from('sources')\n    .select('*')\n    .eq('status', 'approved')\n    .or(`team_id.eq.${teamId},team_id.is.null`); // Team-specific + global\n  \n  const articles = [];\n  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);\n  \n  for (const source of sources) {\n    try {\n      // Fetch RSS feed or scrape HTML\n      const response = await fetch(source.url);\n      const content = await response.text();\n      \n      // Parse RSS if available\n      if (content.includes('<rss') || content.includes('<feed')) {\n        const parser = new DOMParser();\n        const doc = parser.parseFromString(content, 'text/xml');\n        const items = doc.querySelectorAll('item');\n        \n        items.forEach(item => {\n          const pubDate = new Date(item.querySelector('pubDate').textContent);\n          if (pubDate >= twentyFourHoursAgo) {\n            articles.push({\n              source_id: source.id,\n              title: item.querySelector('title').textContent,\n              original_url: item.querySelector('link').textContent,\n              raw_content: item.querySelector('description').textContent,\n              published_at: pubDate.toISOString()\n            });\n          }\n        });\n      }\n      // Fallback: scrape HTML articles\n      else {\n        // Use basic heuristics to find article links and dates\n        // This is simplified - consider using library like cheerio\n      }\n    } catch (error) {\n      console.error(`Failed to fetch source ${source.id}:`, error);\n      // Continue with other sources\n    }\n  }\n  \n  // Deduplicate by URL\n  const uniqueArticles = articles.filter((article, index, self) => \n    index === self.findIndex(a => a.original_url === article.original_url)\n  );\n  \n  // Deduplicate by title similarity (Levenshtein distance > 85% = duplicate)\n  // Implementation omitted for brevity\n  \n  return uniqueArticles;\n}\n\nStore in memory for next pipeline step.",
         "testStrategy": "Run pipeline for Seattle Seahawks and verify articles fetched from multiple sources. Check articles are from last 24 hours. Verify duplicates removed. Test with sources that have RSS vs HTML-only.",
         "priority": "high",
@@ -222,85 +228,90 @@
           "10",
           "15"
         ],
-        "status": "pending",
         "subtasks": []
       },
       {
         "id": "17",
         "title": "Implement article filtering by team relevance",
         "description": "Filter fetched articles to only include those relevant to the specific team",
+        "status": "done",
+        "updatedAt": "2026-03-13T00:00:00.000Z",
         "details": "In run-content-pipeline Edge Function, implement Step 2 (Filter):\n\nasync function filterArticlesByTeam(articles: Article[], teamName: string): Promise<Article[]> {\n  const filtered = [];\n  const globalDiscardCount = new Map(); // Track discard rate per source\n  \n  for (const article of articles) {\n    // Simple check: does article mention team name?\n    const content = (article.title + ' ' + article.raw_content).toLowerCase();\n    const teamMentioned = content.includes(teamName.toLowerCase());\n    \n    if (teamMentioned) {\n      filtered.push({ ...article, relevance_confirmed: true });\n    } else {\n      // Track discard for global sources\n      if (article.source.team_id === null) {\n        globalDiscardCount.set(article.source_id, (globalDiscardCount.get(article.source_id) || 0) + 1);\n      }\n    }\n  }\n  \n  // Flag low-relevance sources (>50% discarded)\n  for (const [sourceId, discardCount] of globalDiscardCount.entries()) {\n    const totalFromSource = articles.filter(a => a.source_id === sourceId).length;\n    const discardRate = discardCount / totalFromSource;\n    \n    if (discardRate > 0.5) {\n      await supabase.from('sources')\n        .update({ status: 'flagged' })\n        .eq('id', sourceId);\n      \n      await notifyAdmin({ sourceId, discardRate, teamName });\n    }\n  }\n  \n  return filtered;\n}\n\nReturn only relevant articles for summarization.",
         "testStrategy": "Run pipeline with broad source (ESPN) and team-specific source. Verify global articles without team mention are filtered out. Verify team-specific articles pass through. Test source flagging when discard rate > 50%.",
         "priority": "high",
         "dependencies": [
           "16"
         ],
-        "status": "pending",
         "subtasks": []
       },
       {
         "id": "18",
         "title": "Implement AI article summarization and categorization",
         "description": "Use Claude API to generate concise summaries and assign categories to articles",
+        "status": "done",
+        "updatedAt": "2026-03-13T00:00:00.000Z",
         "details": "In run-content-pipeline Edge Function, implement Step 3 (Summarize):\n\nasync function summarizeArticles(articles: Article[], teamName: string): Promise<Article[]> {\n  const summarized = [];\n  \n  for (const article of articles) {\n    try {\n      const prompt = `Summarize this NFL article in 2-3 sentences for a busy fan. Be factual, avoid hype. Focus on ${teamName}. \n\nArticle Title: ${article.title}\nContent: ${article.raw_content.slice(0, 3000)}\n\nProvide summary and category. Reply with JSON only: { \"summary\": \"...\", \"category\": \"transaction|injury|game_analysis|rumor|general\" }`;\n      \n      const response = await fetch('https://api.anthropic.com/v1/messages', {\n        method: 'POST',\n        headers: {\n          'Content-Type': 'application/json',\n          'x-api-key': Deno.env.get('ANTHROPIC_API_KEY'),\n          'anthropic-version': '2023-06-01'\n        },\n        body: JSON.stringify({\n          model: 'claude-3-haiku-20240307',\n          max_tokens: 300,\n          messages: [{ role: 'user', content: prompt }]\n        })\n      });\n      \n      const result = await response.json();\n      const parsed = JSON.parse(result.content[0].text);\n      \n      summarized.push({\n        ...article,\n        ai_summary: parsed.summary,\n        category: parsed.category,\n        team_id: teamId // Add team association\n      });\n    } catch (error) {\n      console.error(`Failed to summarize article ${article.original_url}:`, error);\n      // Skip article on error\n    }\n  }\n  \n  return summarized;\n}\n\nInsert summarized articles into articles table.",
         "testStrategy": "Run pipeline and verify articles get 2-3 sentence summaries. Check categories assigned correctly (injury articles tagged as 'injury'). Verify summaries are factual and team-focused. Test rate limiting handling for Claude API.",
         "priority": "high",
         "dependencies": [
           "17"
         ],
-        "status": "pending",
         "subtasks": []
       },
       {
         "id": "19",
         "title": "Implement article ranking and selection logic",
         "description": "Rank articles by priority and select top story, quick hits, and injury report",
+        "status": "done",
+        "updatedAt": "2026-03-13T00:00:00.000Z",
         "details": "In run-content-pipeline Edge Function, implement Step 4 (Rank & Select):\n\nfunction rankAndSelectArticles(articles: Article[]): { leadStory: Article, quickHits: Article[], injuries: Article[] } {\n  // Category priority: transaction > injury > game_analysis > rumor > general\n  const categoryPriority = {\n    'transaction': 5,\n    'injury': 4,\n    'game_analysis': 3,\n    'rumor': 2,\n    'general': 1\n  };\n  \n  // Sort by category priority, then by published_at (newest first)\n  const sorted = articles.sort((a, b) => {\n    const priorityDiff = categoryPriority[b.category] - categoryPriority[a.category];\n    if (priorityDiff !== 0) return priorityDiff;\n    return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();\n  });\n  \n  // Select lead story (highest priority, not injury)\n  const leadStory = sorted.find(a => a.category !== 'injury');\n  \n  // Select 3 quick hits (exclude lead story and injuries)\n  const quickHits = sorted\n    .filter(a => a.id !== leadStory.id && a.category !== 'injury')\n    .slice(0, 3);\n  \n  // Select all injury articles\n  const injuries = articles.filter(a => a.category === 'injury');\n  \n  return { leadStory, quickHits, injuries };\n}\n\nReturn selected articles for newsletter assembly.",
         "testStrategy": "Create test articles with different categories and timestamps. Verify ranking prioritizes transactions over general news. Verify lead story is highest priority non-injury article. Verify exactly 3 quick hits selected.",
         "priority": "medium",
         "dependencies": [
           "18"
         ],
-        "status": "pending",
         "subtasks": []
       },
       {
         "id": "20",
         "title": "Implement AI-generated stat of the day",
         "description": "Use Claude API to generate contextual team statistics for newsletter",
-        "details": "In run-content-pipeline Edge Function, add stat generation:\n\nasync function generateStatOfTheDay(teamName: string, recentArticles: Article[]): Promise<{ stat: string, context: string }> {\n  const articlesContext = recentArticles.map(a => a.title).join('; ');\n  \n  const prompt = `Generate an interesting, contextual statistic about the ${teamName} NFL team. Consider recent news: ${articlesContext}. The stat should be specific, factual, and relevant to current events. Provide a 2-sentence explanation of why it matters. Reply with JSON only: { \"stat\": \"...\", \"context\": \"...\" }`;\n  \n  const response = await fetch('https://api.anthropic.com/v1/messages', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'x-api-key': Deno.env.get('ANTHROPIC_API_KEY'),\n      'anthropic-version': '2023-06-01'\n    },\n    body: JSON.stringify({\n      model: 'claude-3-haiku-20240307',\n      max_tokens: 250,\n      messages: [{ role: 'user', content: prompt }]\n    })\n  });\n  \n  const result = await response.json();\n  const parsed = JSON.parse(result.content[0].text);\n  \n  return { stat: parsed.stat, context: parsed.context };\n}\n\nInclude in newsletter assembly data.",
+        "status": "done",
+        "updatedAt": "2026-03-13T00:00:00.000Z",
+        "details": "In run-content-pipeline Edge Function, add stat generation:\n\nasync function generateStatOfTheDay(teamName: string, recentArticles: Article[]): Promise<{ stat: string, context: string }> {\n  const articlesContext = recentArticles.map(a => a.title).join('; ');\n  \n  const prompt = `Generate an interesting, contextual statistic about the ${teamName} NFL team. Consider recent news: ${articlesContext}. The stat should be specific, factual, and relevant to current events. Provide a 2-sentence explanation.`;\n  ...\n}",
         "testStrategy": "Generate stat for Seattle Seahawks and verify it's relevant and factual. Test with different article contexts and verify stat adapts. Verify 2-sentence context provided.",
         "priority": "medium",
         "dependencies": [
           "19"
         ],
-        "status": "pending",
         "subtasks": []
       },
       {
         "id": "21",
         "title": "Create multi-team pipeline orchestration",
         "description": "Implement team iteration logic to run pipeline for all active teams independently",
+        "status": "done",
+        "updatedAt": "2026-03-13T00:00:00.000Z",
         "details": "In run-content-pipeline Edge Function, implement Step 0 (Team Iteration):\n\nDeno.serve(async (req) => {\n  // Get all active teams\n  const { data: teams } = await supabase\n    .from('teams')\n    .select('*')\n    .eq('is_active', true);\n  \n  const results = [];\n  \n  for (const team of teams) {\n    try {\n      console.log(`Starting pipeline for ${team.name}`);\n      \n      // Run full pipeline\n      const articles = await fetchArticles(team.id);\n      const filtered = await filterArticlesByTeam(articles, team.name);\n      const summarized = await summarizeArticles(filtered, team.name);\n      const selected = rankAndSelectArticles(summarized);\n      const stat = await generateStatOfTheDay(team.name, summarized);\n      \n      // Store in database for newsletter assembly\n      const { data: insertedArticles } = await supabase\n        .from('articles')\n        .insert(summarized)\n        .select();\n      \n      results.push({\n        team_id: team.id,\n        status: 'success',\n        article_count: summarized.length,\n        selected_articles: selected,\n        stat_of_day: stat\n      });\n      \n      console.log(`Completed pipeline for ${team.name}: ${summarized.length} articles`);\n    } catch (error) {\n      console.error(`Pipeline failed for ${team.name}:`, error);\n      results.push({\n        team_id: team.id,\n        status: 'failed',\n        error: error.message\n      });\n      // Continue with next team - failure does not block others\n    }\n  }\n  \n  return new Response(JSON.stringify({ results }));\n});\n\nEnsure one team failure doesn't stop pipeline.",
         "testStrategy": "Enable multiple teams. Run pipeline and verify it processes all teams. Simulate failure for one team (bad source) and verify others complete successfully. Check logs show progress for each team.",
         "priority": "high",
         "dependencies": [
           "20"
         ],
-        "status": "pending",
         "subtasks": []
       },
       {
         "id": "22",
         "title": "Set up cron schedule for daily pipeline execution",
         "description": "Configure Supabase cron job to trigger content pipeline daily at 6:00 AM",
+        "status": "done",
+        "updatedAt": "2026-03-13T00:00:00.000Z",
         "details": "In Supabase Dashboard, go to Database > Extensions and enable pg_cron. Create cron job:\n\nSELECT cron.schedule(\n  'run-content-pipeline',\n  '0 6 * * *', -- 6:00 AM daily\n  $$\n  SELECT net.http_post(\n    url := 'https://[PROJECT-REF].supabase.co/functions/v1/run-content-pipeline',\n    headers := jsonb_build_object(\n      'Content-Type', 'application/json',\n      'Authorization', 'Bearer [SERVICE-ROLE-KEY]'\n    )\n  );\n  $$\n);\n\nAlternatively, use Supabase Edge Function scheduled invocations (if available in your plan). Configure timezone to ensure 6:00 AM aligns with target audience (likely ET for NFL).",
         "testStrategy": "Verify cron job created successfully in pg_cron.job table. Manually trigger job and verify pipeline executes. Check cron execution logs. Consider testing at different time initially, then change to 6 AM.",
         "priority": "medium",
         "dependencies": [
           "21"
         ],
-        "status": "pending",
         "subtasks": []
       },
       {
@@ -313,8 +324,50 @@
         "dependencies": [
           "6"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define newsletter template data contract",
+            "description": "Create a minimal, typed input shape for the newsletter template (team, leadStory, quickHits, injuries, statOfDay, links).",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-18T11:47:41.972Z"
+          },
+          {
+            "id": 2,
+            "title": "Draft table-based HTML layout skeleton",
+            "description": "Implement DOCTYPE/head/meta + single-column 600px max table layout with header/footer scaffolding.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-18T11:47:41.979Z"
+          },
+          {
+            "id": 3,
+            "title": "Add the 4 core sections structure",
+            "description": "Top story, quick hits, injury report, stat of day sections with placeholders and consistent spacing/typography.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-18T11:47:41.980Z"
+          },
+          {
+            "id": 4,
+            "title": "Add footer links + accessibility basics",
+            "description": "Unsubscribe, submit-source, feedback links; ensure alt text, readable font sizes, and high contrast.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-18T11:47:41.982Z"
+          },
+          {
+            "id": 5,
+            "title": "Create browser preview harness",
+            "description": "Add a small local preview page/script to render the HTML with fixture data for quick iteration.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-18T11:47:41.984Z"
+          }
+        ],
+        "updatedAt": "2026-03-18T11:47:41.984Z"
       },
       {
         "id": "24",
@@ -326,8 +379,42 @@
         "dependencies": [
           "23"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement renderNewsletterTemplate() function",
+            "description": "Create the rendering function that injects team colors, article titles/summaries, and links into the template.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-18T11:48:01.987Z"
+          },
+          {
+            "id": 2,
+            "title": "Add tracking + feedback link placeholders",
+            "description": "Define placeholders for pixel URL + thumbs up/down URLs and wire them through template inputs.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-18T11:48:01.991Z"
+          },
+          {
+            "id": 3,
+            "title": "Ensure HTML is email-client safe",
+            "description": "Inline critical CSS, avoid modern layout features, and keep markup compatible with Gmail/Outlook.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-18T11:48:01.993Z"
+          },
+          {
+            "id": 4,
+            "title": "Fixture render snapshot for regression",
+            "description": "Generate a static HTML output from fixtures to diff changes easily during development.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-18T11:48:01.995Z"
+          }
+        ],
+        "updatedAt": "2026-03-18T11:48:01.995Z"
       },
       {
         "id": "25",
@@ -340,7 +427,38 @@
           "24"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Send test newsletter to Gmail + iOS Mail",
+            "description": "Verify layout, spacing, links, images, and dark mode behavior.",
+            "dependencies": [],
+            "details": "Send a test newsletter to Gmail (web, Android, iOS) and iOS Mail (iPhone, iPad). Check table layout rendering, team colors, image loading, link clickability, typography readability, mobile responsiveness, and dark mode compatibility.",
+            "status": "pending",
+            "testStrategy": null,
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Send test newsletter to Outlook (web/desktop)",
+            "description": "Check table rendering, spacing, and any Outlook-specific quirks.",
+            "dependencies": [],
+            "details": "Send a test newsletter to Outlook Windows desktop, Outlook Web, and Outlook Mac. Verify table-based layout renders correctly, check MSO-specific style requirements, and document any Outlook-specific rendering issues.",
+            "status": "pending",
+            "testStrategy": null,
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Document issues + apply fixes",
+            "description": "Capture known limitations and apply minimal compatibility fixes (e.g. MSO conditionals if needed).",
+            "dependencies": [],
+            "details": "Compile all rendering issues found across clients. Apply fixes: MSO conditional comments for Outlook, ensure table-based layout, inline all CSS, add alt text for images, use web-safe fonts with fallbacks. Document known limitations per client.",
+            "status": "pending",
+            "testStrategy": null,
+            "parentId": "undefined"
+          }
+        ]
       },
       {
         "id": "26",
@@ -353,8 +471,42 @@
           "21",
           "24"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create assemble-and-send Edge Function scaffold",
+            "description": "Add `supabase/functions/assemble-and-send/index.ts` with shared supabase client + CORS handling.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-19T11:54:49.821Z"
+          },
+          {
+            "id": 2,
+            "title": "Implement assembleNewsletter(teamId)",
+            "description": "Fetch team + today’s articles, rank/select, generate stat, render HTML, and insert draft newsletter row.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-19T11:54:49.827Z"
+          },
+          {
+            "id": 3,
+            "title": "Handle empty/error states deterministically",
+            "description": "No articles found, only injuries, stat unavailable — still create a valid draft newsletter or skip with clear status.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-19T11:54:49.829Z"
+          },
+          {
+            "id": 4,
+            "title": "Add manual invoke test path",
+            "description": "Allow calling the function for a single team for testing and return structured JSON summary.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-19T11:54:49.830Z"
+          }
+        ],
+        "updatedAt": "2026-03-19T11:54:49.830Z"
       },
       {
         "id": "27",
@@ -366,21 +518,79 @@
         "dependencies": [
           "24"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create track-open Edge Function",
+            "description": "Implement `supabase/functions/track-open/index.ts` to upsert opened_at and return 1x1 gif.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-19T11:54:51.927Z"
+          },
+          {
+            "id": 2,
+            "title": "Add pixel URL generation in template renderer",
+            "description": "Include newsletter_id + subscriber_id parameters and embed the pixel in the email HTML.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-19T11:54:51.931Z"
+          },
+          {
+            "id": 3,
+            "title": "Verify idempotent open tracking",
+            "description": "Multiple opens should not create duplicates; only first open sets opened_at.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-19T11:54:51.933Z"
+          }
+        ],
+        "updatedAt": "2026-03-19T11:54:51.933Z"
       },
       {
         "id": "28",
         "title": "Implement feedback tracking endpoints",
         "description": "Create thumbs up/down click tracking endpoints and update metrics",
-        "details": "Create Supabase Edge Function: supabase/functions/feedback/index.ts\n\nDeno.serve(async (req) => {\n  const url = new URL(req.url);\n  const newsletter_id = url.searchParams.get('newsletter_id');\n  const subscriber_id = url.searchParams.get('subscriber_id');\n  const feedback = url.searchParams.get('feedback'); // 'thumbs_up' or 'thumbs_down'\n  \n  // Update or insert newsletter_metrics\n  const { data: existing } = await supabase\n    .from('newsletter_metrics')\n    .select('*')\n    .eq('newsletter_id', newsletter_id)\n    .eq('subscriber_id', subscriber_id)\n    .single();\n  \n  if (existing) {\n    await supabase\n      .from('newsletter_metrics')\n      .update({ feedback })\n      .eq('id', existing.id);\n  } else {\n    await supabase\n      .from('newsletter_metrics')\n      .insert({\n        newsletter_id,\n        subscriber_id,\n        feedback\n      });\n  }\n  \n  // Redirect to thank you page\n  return Response.redirect(`https://[PROJECT-URL]/feedback-thanks?feedback=${feedback}`, 302);\n});\n\nCreate simple /feedback-thanks page:\n- Thumbs up: 'Thanks for the feedback! Glad you enjoyed today's briefing.'\n- Thumbs down: 'Thanks for the feedback. We'll work to improve.'\n- Link back to newsletter",
+        "details": "Create Supabase Edge Function: supabase/functions/feedback/index.ts\n\nDeno.serve(async (req) => {\n  const url = new URL(req.url);\n  const newsletter_id = url.searchParams.get('newsletter_id');\n  const subscriber_id = url.searchParams.get('subscriber_id');\n  const feedback = url.searchParams.get('feedback'); // 'thumbs_up' or 'thumbs_down'\n  \n  // Update or insert newsletter_metrics\n  const { data: existing } = await supabase\n    .from('newsletter_metrics')\n    .select('*')\n    .eq('newsletter_...",
         "testStrategy": "Click 👍 and 👎 links in test email. Verify metrics updated correctly. Test clicking multiple times and verify feedback can be changed. Verify redirect to thank you page works.",
         "priority": "medium",
         "dependencies": [
           "27"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create feedback Edge Function",
+            "description": "Implement the Supabase Edge Function to handle thumbs up/down feedback submissions and update newsletter_metrics.",
+            "dependencies": [],
+            "details": "Create supabase/functions/feedback/index.ts. Accept newsletter_id, subscriber_id, and feedback ('thumbs_up' or 'thumbs_down') as query params. Upsert into newsletter_metrics table. Return redirect to thank you page.",
+            "status": "done",
+            "testStrategy": "Call endpoint directly with test params and verify metrics table updated.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Add feedback links to email template",
+            "description": "Embed thumbs up/down tracking links in the newsletter HTML template.",
+            "dependencies": [],
+            "details": "Add 👍 and 👎 links to the newsletter footer pointing to the feedback Edge Function URL with newsletter_id and subscriber_id query params pre-populated.",
+            "status": "done",
+            "testStrategy": "Send test email and verify feedback links are present and correctly parameterized.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Create thank you redirect page",
+            "description": "Build a simple thank you page that users land on after submitting feedback.",
+            "dependencies": [],
+            "details": "Create src/pages/FeedbackThankYou.tsx. Display a thank you message confirming feedback was received. Show team branding if team_id is available in query params.",
+            "status": "done",
+            "testStrategy": "Click feedback link in test email and verify redirect to thank you page works correctly.",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-03-19T11:54:54.075Z"
       },
       {
         "id": "29",
@@ -393,21 +603,79 @@
           "26",
           "9"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement sendNewsletter(newsletter, teamId)",
+            "description": "Fetch active subscribers, render personalized HTML, send via Resend, and create metrics rows.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-19T11:54:56.721Z"
+          },
+          {
+            "id": 2,
+            "title": "Add batching + retry-once behavior",
+            "description": "Batch sends, backoff between batches, and retry once for transient failures; never double-send.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-19T11:54:56.773Z"
+          },
+          {
+            "id": 3,
+            "title": "Update newsletter status + sent_at",
+            "description": "Mark newsletter as sent only after successful batch completion; record partial failure counts if needed.",
+            "status": "done",
+            "parentId": "undefined",
+            "updatedAt": "2026-03-19T11:54:56.776Z"
+          }
+        ],
+        "updatedAt": "2026-03-19T11:54:56.776Z"
       },
       {
         "id": "30",
         "title": "Create complete assemble-and-send orchestration",
         "description": "Combine assembly and delivery into single Edge Function triggered after pipeline",
-        "details": "Complete assemble-and-send Edge Function:\n\nDeno.serve(async (req) => {\n  // Get all active teams\n  const { data: teams } = await supabase\n    .from('teams')\n    .select('*')\n    .eq('is_active', true);\n  \n  const results = [];\n  \n  for (const team of teams) {\n    try {\n      console.log(`Assembling newsletter for ${team.name}`);\n      \n      // Assemble newsletter\n      const newsletter = await assembleNewsletter(team.id);\n      \n      // Send to subscribers\n      await sendNewsletter(newsletter, team.id);\n      \n      results.push({\n        team_id: team.id,\n        status: 'sent',\n        newsletter_id: newsletter.id\n      });\n      \n      console.log(`Newsletter sent for ${team.name}`);\n    } catch (error) {\n      console.error(`Newsletter failed for ${team.name}:`, error);\n      results.push({\n        team_id: team.id,\n        status: 'failed',\n        error: error.message\n      });\n    }\n  }\n  \n  return new Response(JSON.stringify({ results }));\n});\n\nConfigure cron to trigger this function after run-content-pipeline completes (6:00 AM + pipeline duration, ~6:15 AM).",
+        "details": "Complete assemble-and-send Edge Function:\n\nDeno.serve(async (req) => {\n  // Get all active teams\n  const { data: teams } = await supabase\n    .from('teams')\n    .select('*')\n    .eq('is_active', true);\n  \n  const results = [];\n  \n  for (const team of teams) {\n    try {\n      console.log(`Assembling newsletter for ${team.name}`);\n      \n      // Assemble newsletter\n      const newsletter = await assembleNewsletter(team.id);\n      \n      // Send to subscribers\n      await sendNewsletter(newsletter...);\n    } catch (err) { ... }\n  }\n});",
         "testStrategy": "Manually trigger function and verify newsletters assembled and sent for all active teams. Check logs for timing. Verify failure in one team doesn't block others. Test end-to-end: pipeline → assembly → delivery.",
         "priority": "high",
         "dependencies": [
           "29"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement assembleNewsletter function",
+            "description": "Build the newsletter assembly logic that queries articles and formats HTML content for a given team.",
+            "dependencies": [],
+            "details": "Query top articles for the team from the articles table. Format lead story, quick hits, injuries, and stat of the day into the newsletter HTML template. Store assembled newsletter in newsletters table with status 'draft'.",
+            "status": "done",
+            "testStrategy": "Call assembleNewsletter for Seattle Seahawks and verify newsletter record created with valid HTML content.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement sendNewsletter function",
+            "description": "Build the email delivery logic that sends assembled newsletters to all active subscribers for a team.",
+            "dependencies": [],
+            "details": "Query active subscribers for the team. Use Resend API to send personalized emails with tracking pixel and unsubscribe links. Update newsletter status to 'sent' and record sent_at timestamp.",
+            "status": "done",
+            "testStrategy": "Send newsletter to test subscriber list and verify emails delivered. Check newsletter status updated to 'sent'.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Wire up orchestration and error isolation",
+            "description": "Connect assembly and delivery in the main Edge Function with per-team error isolation.",
+            "dependencies": [],
+            "details": "Loop over all active teams. For each team, call assembleNewsletter then sendNewsletter. Wrap each team in try-catch so one team's failure doesn't block others. Log results summary at end.",
+            "status": "done",
+            "testStrategy": "Trigger function with one team configured to fail and verify other teams still complete successfully.",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-03-19T11:55:00.404Z"
       },
       {
         "id": "31",
@@ -419,8 +687,9 @@
         "dependencies": [
           "2"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-20T18:34:24.376Z"
       },
       {
         "id": "32",
@@ -432,8 +701,9 @@
         "dependencies": [
           "31"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-20T18:34:24.381Z"
       },
       {
         "id": "33",
@@ -446,8 +716,9 @@
           "32",
           "13"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-20T18:34:24.383Z"
       },
       {
         "id": "34",
@@ -460,8 +731,9 @@
           "32",
           "26"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-20T18:34:24.386Z"
       },
       {
         "id": "35",
@@ -475,8 +747,9 @@
           "27",
           "28"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-20T18:34:24.388Z"
       },
       {
         "id": "36",
@@ -489,8 +762,9 @@
           "32",
           "13"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-20T18:34:24.391Z"
       },
       {
         "id": "37",
@@ -502,13 +776,15 @@
         "dependencies": [
           "8"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-20T18:34:24.394Z"
       },
       {
         "id": "38",
         "title": "Implement admin notification system",
         "description": "Create email alerts for admin on flagged sources and pipeline errors",
+        "updatedAt": "2026-03-12T22:00:00.000Z",
         "details": "Create notification helper in _shared/notify-admin.ts:\n\nasync function notifyAdmin(notification: {\n  type: 'source_flagged' | 'pipeline_error' | 'low_relevance_source',\n  data: any\n}): Promise<void> {\n  const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'admin@nflwire.com';\n  \n  let subject = '';\n  let html = '';\n  \n  switch (notification.type) {\n    case 'source_flagged':\n      subject = `Source Flagged: ${notification.data.url}`;\n      html = `\n        <h2>Source requires review</h2>\n        <p><strong>URL:</strong> ${notification.data.url}</p>\n        <p><strong>Team:</strong> ${notification.data.teamName}</p>\n        <p><strong>Confidence:</strong> ${notification.data.confidence}%</p>\n        <p><strong>Reason:</strong> ${notification.data.reason}</p>\n        <a href=\"https://[PROJECT-URL]/admin/sources\">Review in Admin</a>\n      `;\n      break;\n    \n    case 'pipeline_error':\n      subject = `Pipeline Error: ${notification.data.teamName}`;\n      html = `\n        <h2>Content pipeline failed</h2>\n        <p><strong>Team:</strong> ${notification.data.teamName}</p>\n        <p><strong>Error:</strong> ${notification.data.error}</p>\n        <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>\n      `;\n      break;\n    \n    case 'low_relevance_source':\n      subject = `Low Relevance Source: ${notification.data.sourceId}`;\n      html = `\n        <h2>Source has high discard rate</h2>\n        <p><strong>Source ID:</strong> ${notification.data.sourceId}</p>\n        <p><strong>Team:</strong> ${notification.data.teamName}</p>\n        <p><strong>Discard Rate:</strong> ${(notification.data.discardRate * 100).toFixed(1)}%</p>\n        <a href=\"https://[PROJECT-URL]/admin/sources\">Review in Admin</a>\n      `;\n      break;\n  }\n  \n  await fetch('https://api.resend.com/emails', {\n    method: 'POST',\n    headers: {\n      'Authorization': `Bearer ${Deno.env.get('RESEND_API_KEY')}`,\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify({\n      from: 'NFL Wire Alerts <alerts@nflwire.com>',\n      to: adminEmail,\n      subject,\n      html\n    })\n  });\n}\n\nIntegrate into validation and pipeline functions.",
         "testStrategy": "Trigger each notification type (submit flagged source, cause pipeline error, trigger low relevance). Verify admin receives emails with correct content. Test notification doesn't block main function execution.",
         "priority": "low",
@@ -516,7 +792,7 @@
           "10",
           "9"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -618,13 +894,272 @@
         ],
         "status": "pending",
         "subtasks": []
+      },
+      {
+        "id": "46",
+        "title": "Phase 3 v2: Fetch full article bodies (not just RSS)",
+        "description": "Update the content pipeline to fetch and extract full article text for each candidate item before summarization/scoring",
+        "details": "PRD update: the pipeline must fetch full article body content from each RSS item link (original_url), not rely solely on RSS <description> snippets.\n\nImplementation notes:\n- In `supabase/functions/run-content-pipeline/index.ts`, after parsing RSS items, fetch each `link` (with timeouts, content-type checks, and retry once) and extract readable text.\n- Use deterministic extraction (strip scripts/styles, basic readability heuristics). Cap extracted text length (e.g. 8k-12k chars) to control cost.\n- Preserve the RSS title/link/published_at as metadata; store extracted body as the source of truth for downstream steps.\n- Ensure idempotency/dedupe still works on `original_url`.\n\nEdge cases:\n- Paywalls / blocked bots / 403: skip and record reason in pipeline response.\n- Non-HTML articles (PDF/video pages): skip.\n- Timeouts: skip and record.\n\nSecurity/perf:\n- Do not execute remote JS. Only fetch + parse HTML.\n- Respect strict timeouts and max articles per source/team.",
+        "testStrategy": "Run pipeline and verify `sources_tested` shows RSS items found, and that each accepted article has extracted body text length > 0. Confirm no article is summarized/scored without extracted body content.",
+        "priority": "high",
+        "dependencies": [
+          "16",
+          "17"
+        ],
+        "status": "deferred",
+        "subtasks": [],
+        "updatedAt": "2026-03-16T15:52:45.307Z"
+      },
+      {
+        "id": "47",
+        "title": "Phase 3 v2: Add AI selection scoring with composite threshold",
+        "description": "Score each candidate article on relevance/significance/credibility/uniqueness and compute composite_score with threshold >= 65",
+        "details": "PRD update: score articles using Claude on the fetched full article body only (not RSS snippets).\n\nRequirements:\n- Per article, compute numeric subscores: relevance, significance, credibility, uniqueness (0-100).\n- Compute `composite_score` (document formula; default average unless PRD specifies weights).\n- Only allow articles with `composite_score >= 65` to proceed into ranking/selection.\n- Avoid double-counting duplicates: if uniqueness is low, composite should fall below threshold.\n\nImplementation notes:\n- Add a scoring step between filtering and summarization (or combine summarization + scoring in one Claude call, returning structured JSON).\n- Validate JSON with strict schema (Zod) before storing.\n- Keep temperature low (0.2-0.4).",
+        "testStrategy": "Run pipeline on a day with mixed items. Verify each article has subscores + composite, and that articles below 65 are excluded from lead/quick hits. Confirm scoring uses extracted body only.",
+        "priority": "high",
+        "dependencies": [
+          "46"
+        ],
+        "status": "deferred",
+        "subtasks": [],
+        "updatedAt": "2026-03-16T15:52:45.314Z"
+      },
+      {
+        "id": "48",
+        "title": "Phase 3 v2: Store selection reasoning per article",
+        "description": "Persist model-produced selection_reasoning explaining why each kept article was included (and optionally why exclusions happened)",
+        "details": "PRD update: store `selection_reasoning` for each article selected into the newsletter set.\n\nImplementation notes:\n- Extend storage to include `selection_reasoning` text for selected articles.\n- The reasoning must reference the scoring dimensions and the key facts from the fetched article body.\n- Do not store reasoning for articles that were never fetched/extracted.\n\nThis likely requires a DB migration (new column on `articles` or a separate `article_scores` / `article_selection` table).",
+        "testStrategy": "Run pipeline and confirm selected articles in DB include non-empty `selection_reasoning` that matches the scoring output and does not cite facts absent from the body.",
+        "priority": "high",
+        "dependencies": [
+          "47",
+          "3"
+        ],
+        "status": "deferred",
+        "subtasks": [],
+        "updatedAt": "2026-03-16T15:52:45.315Z"
+      },
+      {
+        "id": "49",
+        "title": "Phase 3 v2: Validate suspicious facts via web search",
+        "description": "Add a fact validation pass that web-checks suspicious numeric/claim-heavy facts before finalizing summaries",
+        "details": "PRD update: validate suspicious facts via web search.\n\nImplementation notes:\n- Define what qualifies as 'suspicious' (e.g. numbers, records, dates, transactional claims) and extract candidate claims from the fetched body.\n- For suspicious claims, do a web check (search + fetch) and either confirm, soften language, or exclude the claim.\n- Store validation outcome (confirmed/uncertain/false) and sources used for validation (URLs).\n\nNote: This may require new DB fields/tables to store validation results.",
+        "testStrategy": "Inject a known false/suspicious claim in a controlled test article and verify the pipeline flags it and adjusts output accordingly, recording validation sources and outcome.",
+        "priority": "high",
+        "dependencies": [
+          "47"
+        ],
+        "status": "deferred",
+        "subtasks": [],
+        "updatedAt": "2026-03-16T15:52:45.317Z"
+      },
+      {
+        "id": "50",
+        "title": "Phase 3 v2: Generate newsletter content strictly from fetched data",
+        "description": "Ensure lead story, quick hits, injuries, stat of the day, and summaries only use fetched/extracted article content",
+        "details": "PRD update: generate newsletter content from fetched data only.\n\nImplementation notes:\n- Summaries must be grounded strictly in extracted article bodies.\n- Stat of the day must either be derived from the extracted data or omitted when not verifiable.\n- Ensure no 'general knowledge' fill unless explicitly allowed by PRD.\n\nThis task should also update API responses/tests to prove grounding (e.g. include per-article source URLs and optional citations for validated facts).",
+        "testStrategy": "Run pipeline and confirm every generated text block can be traced back to extracted body content and/or validated sources; no invented stats.",
+        "priority": "high",
+        "dependencies": [
+          "46",
+          "47",
+          "49"
+        ],
+        "status": "deferred",
+        "subtasks": [],
+        "updatedAt": "2026-03-16T15:52:45.319Z"
+      },
+      {
+        "id": "51",
+        "title": "Implement Duplicate Suppression for Article Selection",
+        "description": "Before article selection, query the newsletters table for all previously published article URLs and exclude them from consideration. Collapse same-event stories from multiple sources down to the single highest composite_score source using both URL exact match and semantic title similarity above 80%.",
+        "details": "Implement duplicate suppression in the `run-content-pipeline` Edge Function, injected between the article fetching/scoring steps and the final rank-and-select step. This logic should run after articles have been scored (composite_score available) but before `rankAndSelectArticles` is called.\n\n---\n\n### Step 1: Fetch Previously Published Article URLs\n\nQuery the `newsletters` table (and optionally a dedicated `published_articles` junction table if it exists) to collect all article URLs that have already appeared in sent newsletters for the given team:\n\n```typescript\nasync function fetchPublishedArticleURLs(teamId: string): Promise<Set<string>> {\n  // Query newsletters sent in the last N days (e.g., 30 days) to avoid unbounded growth\n  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();\n\n  const { data: newsletters, error } = await supabase\n    .from('newsletters')\n    .select('article_urls') // JSON array column storing URLs of included articles\n    .eq('team_id', teamId)\n    .eq('status', 'sent')\n    .gte('sent_at', cutoff);\n\n  if (error) throw error;\n\n  const publishedURLs = new Set<string>();\n  for (const newsletter of newsletters ?? []) {\n    for (const url of newsletter.article_urls ?? []) {\n      publishedURLs.add(url);\n    }\n  }\n  return publishedURLs;\n}\n```\n\n> **Note:** If `newsletters` does not yet store `article_urls` as a JSON column, add a migration to add `article_urls jsonb DEFAULT '[]'` to the `newsletters` table and populate it during newsletter assembly (Task 26).\n\n---\n\n### Step 2: URL Exact-Match Exclusion\n\nAfter fetching the published URL set, filter the candidate articles:\n\n```typescript\nfunction excludePublishedByURL(articles: Article[], publishedURLs: Set<string>): Article[] {\n  return articles.filter(article => !publishedURLs.has(article.url));\n}\n```\n\n---\n\n### Step 3: Semantic Title Similarity (>80%) Deduplication\n\nUse a lightweight string similarity algorithm (e.g., Jaro-Winkler or normalized Levenshtein) to detect near-duplicate titles without requiring an external API call. For higher accuracy, optionally call the Claude or OpenAI embeddings API, but prefer a local approach for latency/cost reasons.\n\n```typescript\nfunction normalizeTitle(title: string): string {\n  return title.toLowerCase().replace(/[^a-z0-9\\s]/g, '').replace(/\\s+/g, ' ').trim();\n}\n\n// Bigram-based Dice coefficient — fast and effective for short strings\nfunction diceCoefficient(a: string, b: string): number {\n  const bigrams = (s: string) => {\n    const set = new Map<string, number>();\n    for (let i = 0; i < s.length - 1; i++) {\n      const bg = s.slice(i, i + 2);\n      set.set(bg, (set.get(bg) ?? 0) + 1);\n    }\n    return set;\n  };\n  const aBigrams = bigrams(a);\n  const bBigrams = bigrams(b);\n  let intersection = 0;\n  for (const [bg, count] of aBigrams) {\n    intersection += Math.min(count, bBigrams.get(bg) ?? 0);\n  }\n  const total = (a.length - 1) + (b.length - 1);\n  return total === 0 ? 1 : (2 * intersection) / total;\n}\n\nfunction isSimilarTitle(titleA: string, titleB: string, threshold = 0.80): boolean {\n  return diceCoefficient(normalizeTitle(titleA), normalizeTitle(titleB)) >= threshold;\n}\n```\n\nAlso exclude articles whose titles are semantically similar to any previously published article title. Collect published titles from the same newsletter query above:\n\n```typescript\nasync function fetchPublishedArticleTitles(teamId: string): Promise<string[]> {\n  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();\n  const { data: newsletters } = await supabase\n    .from('newsletters')\n    .select('article_titles') // JSON array of title strings\n    .eq('team_id', teamId)\n    .eq('status', 'sent')\n    .gte('sent_at', cutoff);\n  return (newsletters ?? []).flatMap(n => n.article_titles ?? []);\n}\n\nfunction excludePublishedBySimilarTitle(\n  articles: Article[],\n  publishedTitles: string[],\n  threshold = 0.80\n): Article[] {\n  return articles.filter(article =>\n    !publishedTitles.some(pt => isSimilarTitle(article.title, pt, threshold))\n  );\n}\n```\n\n---\n\n### Step 4: Collapse Same-Event Stories (Cross-Source Deduplication)\n\nAmong the remaining candidate articles, group articles that cover the same event (similar title ≥ 80%) and keep only the one with the highest `composite_score`:\n\n```typescript\nfunction collapseDuplicates(articles: Article[], threshold = 0.80): Article[] {\n  const kept: Article[] = [];\n  const consumed = new Set<string>();\n\n  // Sort descending by composite_score so the best article is processed first\n  const sorted = [...articles].sort((a, b) => b.composite_score - a.composite_score);\n\n  for (const article of sorted) {\n    if (consumed.has(article.url)) continue;\n\n    // Mark all similar articles as consumed\n    for (const other of sorted) {\n      if (other.url === article.url || consumed.has(other.url)) continue;\n      if (\n        other.url === article.url || // exact URL match (safety)\n        isSimilarTitle(article.title, other.title, threshold)\n      ) {\n        consumed.add(other.url);\n      }\n    }\n\n    kept.push(article);\n    consumed.add(article.url);\n  }\n\n  return kept;\n}\n```\n\n---\n\n### Step 5: Wire Into Pipeline\n\nIn the main pipeline orchestration function, insert duplicate suppression before `rankAndSelectArticles`:\n\n```typescript\n// After scoring\nlet candidates = await scoreArticles(rawArticles);\n\n// Duplicate suppression\nconst [publishedURLs, publishedTitles] = await Promise.all([\n  fetchPublishedArticleURLs(teamId),\n  fetchPublishedArticleTitles(teamId),\n]);\ncandidates = excludePublishedByURL(candidates, publishedURLs);\ncandidates = excludePublishedBySimilarTitle(candidates, publishedTitles);\ncandidates = collapseDuplicates(candidates);\n\n// Rank and select\nconst { leadStory, quickHits, injuries } = rankAndSelectArticles(candidates);\n```\n\n---\n\n### Step 6: Schema Additions (Migration)\n\nIf not already present, add to the `newsletters` table:\n\n```sql\nALTER TABLE newsletters\n  ADD COLUMN IF NOT EXISTS article_urls jsonb DEFAULT '[]',\n  ADD COLUMN IF NOT EXISTS article_titles jsonb DEFAULT '[]';\n```\n\nPopulate these columns in the newsletter assembly step (Task 26) when articles are selected.\n\n---\n\n### Configuration\n\nExpose the similarity threshold and lookback window as environment variables for easy tuning:\n- `DUPLICATE_SIMILARITY_THRESHOLD` (default: `0.80`)\n- `DUPLICATE_LOOKBACK_DAYS` (default: `30`)",
+        "testStrategy": "**1. URL Exact-Match Exclusion**\n- Insert a test article URL into a mock \"sent\" newsletter's `article_urls` column for a given team.\n- Run the pipeline for that team and verify the article with the matching URL does not appear in the candidate list passed to `rankAndSelectArticles`.\n- Verify articles with different URLs are not excluded.\n\n**2. Semantic Title Similarity Exclusion (Previously Published)**\n- Insert a published article title like \"Seahawks sign wide receiver to 3-year deal\" into a sent newsletter's `article_titles`.\n- Introduce a new candidate article with title \"Seahawks sign WR to three-year contract\" (should score ≥ 80% similarity).\n- Verify the new candidate is excluded.\n- Introduce a candidate with a clearly different title and verify it is NOT excluded.\n\n**3. Cross-Source Same-Event Collapse**\n- Create 3 candidate articles covering the same event (similar titles, ≥ 80% similarity) from 3 different sources with composite_scores of 0.9, 0.7, and 0.5.\n- Run `collapseDuplicates` and verify only the article with score 0.9 is retained.\n- Verify the other two are removed.\n- Create 2 candidate articles with clearly different titles and verify both are retained.\n\n**4. Dice Coefficient Unit Tests**\n- Test `diceCoefficient(\"seahawks sign receiver\", \"seahawks sign receiver\")` → 1.0.\n- Test `diceCoefficient(\"seahawks sign receiver\", \"completely unrelated story\")` → well below 0.80.\n- Test boundary cases: empty strings, single-word titles.\n\n**5. End-to-End Pipeline Test**\n- Seed the database with a sent newsletter containing 3 article URLs and titles for the Seahawks.\n- Fetch 10 new articles, 3 of which are duplicates (1 exact URL match, 2 near-title matches), and 2 of which are same-event duplicates from different sources.\n- Run the full pipeline and verify: (a) the 3 previously published articles are excluded, (b) only the higher-scored article from each same-event pair survives, (c) the final candidate pool passed to ranking contains only unique, novel articles.\n\n**6. Schema Validation**\n- Verify `article_urls` and `article_titles` columns exist on the `newsletters` table.\n- Verify newsletter assembly (Task 26) correctly populates both columns when a newsletter is assembled.\n\n**7. Configuration Test**\n- Set `DUPLICATE_SIMILARITY_THRESHOLD=0.95` and verify that articles with 85% title similarity are no longer excluded.\n- Set `DUPLICATE_LOOKBACK_DAYS=1` and verify articles from newsletters older than 1 day are not considered published duplicates.",
+        "status": "pending",
+        "dependencies": [
+          "16",
+          "19",
+          "26"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "52",
+        "title": "Implement Empty Pipeline Fallback and Reduced Newsletter Logic",
+        "description": "Add graceful degradation logic to the content pipeline so that zero-article runs skip sending and notify the admin, 1–2 article runs produce a reduced \"light-day\" newsletter with a header notice, and any section with no content is omitted from the rendered HTML entirely.",
+        "details": "\n## Overview\n\nThis task adds three tiers of fallback behaviour to the `run-content-pipeline` / `assemble-and-send` Edge Functions, evaluated **after** duplicate suppression (Task 51) and **before** the final newsletter assembly call (Task 26).\n\n---\n\n## Step 1 – Define the threshold constants\n\nIn `supabase/functions/_shared/pipeline-constants.ts` (create if absent), export:\n\n```ts\nexport const COMPOSITE_SCORE_THRESHOLD = 0.45; // tune as needed\nexport const REDUCED_NEWSLETTER_MAX = 2;        // 1–2 articles → light-day mode\nexport const FULL_NEWSLETTER_MIN = 3;           // ≥3 articles → normal send\n```\n\n---\n\n## Step 2 – Filter articles against the threshold\n\nAfter scoring and duplicate suppression, add a filtering step in `run-content-pipeline`:\n\n```ts\nconst qualifiedArticles = scoredArticles.filter(\n  (a) => a.composite_score >= COMPOSITE_SCORE_THRESHOLD\n);\n```\n\n---\n\n## Step 3 – Zero-article fallback (no send)\n\n```ts\nif (qualifiedArticles.length === 0) {\n  console.warn(\n    `[pipeline] Team ${teamId}: 0 articles passed composite_score threshold ` +\n    `(${COMPOSITE_SCORE_THRESHOLD}). Newsletter skipped.`\n  );\n\n  // Persist a skipped run record for audit / admin UI\n  await supabase.from('newsletters').insert({\n    team_id: teamId,\n    status: 'skipped',\n    skip_reason: 'no_qualified_articles',\n    created_at: new Date().toISOString(),\n  });\n\n  // Notify admin via existing helper (Task 38)\n  await notifyAdmin({\n    type: 'pipeline_error',\n    data: {\n      team_id: teamId,\n      message: `Newsletter skipped – 0 articles passed composite_score threshold (${COMPOSITE_SCORE_THRESHOLD}).`,\n      timestamp: new Date().toISOString(),\n    },\n  });\n\n  return { status: 'skipped', reason: 'no_qualified_articles' };\n}\n```\n\n---\n\n## Step 4 – Light-day fallback (1–2 articles)\n\n```ts\nconst isLightDay = qualifiedArticles.length <= REDUCED_NEWSLETTER_MAX;\n\nconst lightDayNotice = isLightDay\n  ? `<div class=\"light-day-notice\" style=\"background:#fff3cd;border-left:4px solid #ffc107;padding:12px 16px;margin-bottom:24px;font-size:14px;\">\n       <strong>Light news day:</strong> Only a handful of stories cleared our quality bar today.\n       Expect a fuller edition next time.\n     </div>`\n  : '';\n```\n\nPass `isLightDay` and `lightDayNotice` into the assembly context so the template can render the banner at the top of the email body.\n\n---\n\n## Step 5 – Omit empty sections\n\nIn the newsletter assembly function (`assembleNewsletter` in `assemble-and-send`), guard every section before rendering:\n\n```ts\n// Lead story section\nconst leadStoryHtml = selected.leadStory\n  ? renderLeadStory(selected.leadStory)\n  : '';\n\n// Quick hits section – only render if ≥1 article\nconst quickHitsHtml = selected.quickHits?.length\n  ? renderQuickHits(selected.quickHits)\n  : '';\n\n// Injuries section – only render if ≥1 item\nconst injuriesHtml = selected.injuries?.length\n  ? renderInjuries(selected.injuries)\n  : '';\n\n// Stat of the day – only render if stat was generated\nconst statHtml = statOfTheDay?.stat\n  ? renderStat(statOfTheDay)\n  : '';\n\n// Compose final HTML – concatenate only non-empty sections\nconst bodyHtml = [\n  lightDayNotice,\n  leadStoryHtml,\n  quickHitsHtml,\n  injuriesHtml,\n  statHtml,\n].filter(Boolean).join('\\n');\n```\n\nNever inject an empty `<section>` or placeholder text for missing content.\n\n---\n\n## Step 6 – Update `newsletters` table schema (if needed)\n\nEnsure the `newsletters` table supports the new `skipped` status and `skip_reason` column:\n\n```sql\nALTER TABLE newsletters\n  ADD COLUMN IF NOT EXISTS skip_reason text;\n\n-- Add 'skipped' to the status check constraint if one exists\n-- e.g.: ALTER TABLE newsletters DROP CONSTRAINT newsletters_status_check;\n-- ALTER TABLE newsletters ADD CONSTRAINT newsletters_status_check\n--   CHECK (status IN ('draft','scheduled','sent','skipped'));\n```\n\n---\n\n## Step 7 – Logging\n\nUse structured log lines throughout so they are queryable in Supabase logs:\n\n```\n[pipeline:fallback] team=<id> qualified=0 action=skip\n[pipeline:fallback] team=<id> qualified=2 action=light_day\n[pipeline:assembly] team=<id> section=quick_hits omitted=true reason=empty\n```\n\n---\n\n## Integration Points\n\n- Runs **after** Task 51 (duplicate suppression) and **before** Task 26 (newsletter assembly).\n- Uses the `notifyAdmin` helper from Task 38.\n- The `newsletters` table `status='skipped'` record will surface in the Content Preview view (Task 34) so admins can see skipped days.\n",
+        "testStrategy": "\n## 1. Zero-Article Fallback\n\n- Mock `scoredArticles` to return an empty array (or all articles with `composite_score < COMPOSITE_SCORE_THRESHOLD`).\n- Invoke the pipeline for a test team.\n- **Assert:** No email is sent (verify SendGrid/Resend call count = 0).\n- **Assert:** A `newsletters` row is inserted with `status = 'skipped'` and `skip_reason = 'no_qualified_articles'`.\n- **Assert:** Admin notification email is received with the correct team ID and reason message.\n- **Assert:** Pipeline returns `{ status: 'skipped', reason: 'no_qualified_articles' }`.\n- **Assert:** Structured log line `[pipeline:fallback] … action=skip` appears in Supabase function logs.\n\n## 2. Light-Day Fallback (1 Article)\n\n- Mock `scoredArticles` to return exactly 1 article above threshold.\n- Run the pipeline.\n- **Assert:** Email IS sent.\n- **Assert:** The rendered HTML contains the `light-day-notice` banner with the expected copy.\n- **Assert:** Only sections with content are present in the HTML (e.g., no `<section>` for quick hits or injuries if those arrays are empty).\n- **Assert:** `newsletters` row has `status = 'sent'` (not skipped).\n\n## 3. Light-Day Fallback (2 Articles)\n\n- Repeat test 2 with exactly 2 articles.\n- **Assert:** Same light-day banner present.\n- **Assert:** Sections that have content render; sections without content are absent.\n\n## 4. Full Newsletter (≥3 Articles)\n\n- Mock `scoredArticles` to return 5 articles above threshold.\n- **Assert:** No light-day banner in rendered HTML.\n- **Assert:** All populated sections render normally.\n\n## 5. Empty Section Omission\n\n- Provide articles that produce a lead story and quick hits but no injury items and no stat.\n- **Assert:** Injuries section HTML is absent from the output.\n- **Assert:** Stat section HTML is absent from the output.\n- **Assert:** No empty `<section>` or placeholder tags appear anywhere in the HTML.\n\n## 6. Threshold Boundary\n\n- Test an article with `composite_score` exactly equal to `COMPOSITE_SCORE_THRESHOLD`.\n- **Assert:** Article IS included (boundary is inclusive `>=`).\n- Test an article with `composite_score` one epsilon below threshold.\n- **Assert:** Article is excluded.\n\n## 7. Admin Notification Content\n\n- Trigger the zero-article path.\n- Inspect the admin email: verify it contains team name/ID, the threshold value, and a timestamp.\n- Verify the email does NOT block or delay the pipeline response (fire-and-forget / non-blocking).\n\n## 8. Database Schema\n\n- Run `\\d newsletters` and confirm `skip_reason` column exists.\n- Confirm `status = 'skipped'` is accepted without constraint violation.\n",
+        "status": "pending",
+        "dependencies": [
+          "19",
+          "26",
+          "38",
+          "51"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "53",
+        "title": "Enforce Explicit Composite Score Formula with Separate Dimension Storage and Adaptive Threshold",
+        "description": "Implement the explicit weighted composite score formula — (relevance × 0.40) + (significance × 0.30) + (credibility × 0.20) + (uniqueness × 0.10) — storing all four dimension scores as separate columns in the articles table, and apply a standard threshold of 65 (lowered to 55 under low-volume conditions).",
+        "details": "## Overview\n\nThis task formalises the composite scoring formula used to gate article selection, replacing any prior averaging or undocumented weighting with the canonical weighted formula. It also ensures all four dimension scores are persisted individually in the database and that the threshold adapts to low-volume pipeline runs.\n\n---\n\n## Step 1 – Database Migration\n\nCreate a new Supabase migration file (e.g. `supabase/migrations/<timestamp>_article_score_dimensions.sql`):\n\n```sql\nALTER TABLE articles\n  ADD COLUMN IF NOT EXISTS score_relevance   NUMERIC(5,2),\n  ADD COLUMN IF NOT EXISTS score_significance NUMERIC(5,2),\n  ADD COLUMN IF NOT EXISTS score_credibility  NUMERIC(5,2),\n  ADD COLUMN IF NOT EXISTS score_uniqueness   NUMERIC(5,2);\n\n-- composite_score column should already exist from Task 47; ensure it does:\nALTER TABLE articles\n  ADD COLUMN IF NOT EXISTS composite_score NUMERIC(5,2);\n\n-- Optional index for fast threshold filtering\nCREATE INDEX IF NOT EXISTS idx_articles_composite_score ON articles(composite_score);\n```\n\nRun via `supabase db push` or include in the migration pipeline.\n\n---\n\n## Step 2 – Update Shared Constants\n\nIn `supabase/functions/_shared/pipeline-constants.ts`, add or update:\n\n```ts\n// Composite score weights (must sum to 1.0)\nexport const SCORE_WEIGHTS = {\n  relevance:    0.40,\n  significance: 0.30,\n  credibility:  0.20,\n  uniqueness:   0.10,\n} as const;\n\n// Thresholds\nexport const COMPOSITE_SCORE_THRESHOLD_STANDARD  = 65;\nexport const COMPOSITE_SCORE_THRESHOLD_LOW_VOLUME = 55;\n\n// Low-volume definition: fewer than this many candidates after dedup\nexport const LOW_VOLUME_ARTICLE_COUNT = 5; // tune as needed\n```\n\nRemove or deprecate the old `COMPOSITE_SCORE_THRESHOLD = 0.45` constant (or keep it aliased for backward compatibility during transition).\n\n---\n\n## Step 3 – Implement the Scoring Helper\n\nIn `supabase/functions/_shared/scoring.ts` (create if absent):\n\n```ts\nimport { SCORE_WEIGHTS } from './pipeline-constants.ts';\n\nexport interface DimensionScores {\n  relevance:    number; // 0–100\n  significance: number; // 0–100\n  credibility:  number; // 0–100\n  uniqueness:   number; // 0–100\n}\n\nexport interface ScoredArticle {\n  id: string;\n  score_relevance:    number;\n  score_significance: number;\n  score_credibility:  number;\n  score_uniqueness:   number;\n  composite_score:    number;\n}\n\n/**\n * Computes the canonical weighted composite score.\n * All inputs are expected on a 0–100 scale.\n * Returns a value on a 0–100 scale.\n */\nexport function computeCompositeScore(dims: DimensionScores): number {\n  return (\n    dims.relevance    * SCORE_WEIGHTS.relevance    +\n    dims.significance * SCORE_WEIGHTS.significance +\n    dims.credibility  * SCORE_WEIGHTS.credibility  +\n    dims.uniqueness   * SCORE_WEIGHTS.uniqueness\n  );\n}\n\n/**\n * Determines the active threshold based on candidate article count.\n */\nexport function resolveThreshold(candidateCount: number): number {\n  return candidateCount < LOW_VOLUME_ARTICLE_COUNT\n    ? COMPOSITE_SCORE_THRESHOLD_LOW_VOLUME\n    : COMPOSITE_SCORE_THRESHOLD_STANDARD;\n}\n```\n\nImport `LOW_VOLUME_ARTICLE_COUNT`, `COMPOSITE_SCORE_THRESHOLD_LOW_VOLUME`, and `COMPOSITE_SCORE_THRESHOLD_STANDARD` from `pipeline-constants.ts`.\n\n---\n\n## Step 4 – Update AI Scoring Call (Task 47 Integration)\n\nIn the scoring step of `run-content-pipeline` (introduced by Task 47), update the Claude prompt to explicitly request all four dimension scores as separate JSON fields:\n\n```ts\nconst prompt = `\nScore the following article on four dimensions, each from 0 to 100:\n- relevance: How directly relevant is this to the target team and its fans?\n- significance: How significant is this event/news in the context of the sport?\n- credibility: How credible and well-sourced is this article?\n- uniqueness: How unique is this story compared to other common news items?\n\nReturn ONLY valid JSON in this exact shape:\n{\n  \"relevance\": <number>,\n  \"significance\": <number>,\n  \"credibility\": <number>,\n  \"uniqueness\": <number>\n}\n\nArticle content:\n${articleBody}\n`;\n```\n\nAfter receiving the response, compute and persist:\n\n```ts\nconst dims: DimensionScores = JSON.parse(claudeResponse);\nconst composite = computeCompositeScore(dims);\n\nawait supabase\n  .from('articles')\n  .update({\n    score_relevance:    dims.relevance,\n    score_significance: dims.significance,\n    score_credibility:  dims.credibility,\n    score_uniqueness:   dims.uniqueness,\n    composite_score:    composite,\n  })\n  .eq('id', article.id);\n```\n\n---\n\n## Step 5 – Apply Adaptive Threshold in Pipeline\n\nAfter all articles are scored, resolve the threshold and filter:\n\n```ts\nconst threshold = resolveThreshold(scoredArticles.length);\n\nconst qualifiedArticles = scoredArticles.filter(\n  (a) => a.composite_score >= threshold\n);\n\nconsole.log(\n  `[scoring] threshold=${threshold}, candidates=${scoredArticles.length}, qualified=${qualifiedArticles.length}`\n);\n```\n\nPass `qualifiedArticles` to the duplicate suppression step (Task 51) and then to `rankAndSelectArticles` (Task 19).\n\n---\n\n## Step 6 – Logging and Observability\n\nLog the per-article breakdown for debugging:\n\n```ts\nfor (const a of scoredArticles) {\n  console.log(\n    `[score] id=${a.id} R=${a.score_relevance} S=${a.score_significance} C=${a.score_credibility} U=${a.score_uniqueness} composite=${a.composite_score.toFixed(1)}`\n  );\n}\n```\n\n---\n\n## Considerations\n\n- All dimension scores are on a **0–100 scale**; the composite result is also 0–100.\n- The low-volume threshold (55) applies when the total number of scored candidates (before threshold filtering) is below `LOW_VOLUME_ARTICLE_COUNT`. This count should be evaluated **before** filtering, not after.\n- If the Claude response is malformed or missing a dimension, default that dimension to `0` and log a warning rather than crashing the pipeline.\n- Ensure backward compatibility: articles scored before this migration will have `NULL` dimension columns, which is acceptable — they will be re-scored on the next pipeline run.\n",
+        "testStrategy": "## 1. Unit Tests – `computeCompositeScore`\n\n- **Exact formula verification:** Call `computeCompositeScore({ relevance: 100, significance: 100, credibility: 100, uniqueness: 100 })` and assert result equals `100`.\n- **Weighted correctness:** Call with `{ relevance: 80, significance: 60, credibility: 70, uniqueness: 50 }` and assert result equals `(80×0.40)+(60×0.30)+(70×0.20)+(50×0.10)` = `32+18+14+5` = **69.0**.\n- **Zero case:** All zeros should return `0`.\n- **Weight sum sanity:** Assert `Object.values(SCORE_WEIGHTS).reduce((a,b)=>a+b,0) === 1.0`.\n\n## 2. Unit Tests – `resolveThreshold`\n\n- With `candidateCount = 10` (≥ LOW_VOLUME_ARTICLE_COUNT), assert threshold = **65**.\n- With `candidateCount = 3` (< LOW_VOLUME_ARTICLE_COUNT), assert threshold = **55**.\n- With `candidateCount = LOW_VOLUME_ARTICLE_COUNT - 1`, assert threshold = **55**.\n- With `candidateCount = LOW_VOLUME_ARTICLE_COUNT`, assert threshold = **65**.\n\n## 3. Database Migration Tests\n\n- After running the migration, query `information_schema.columns` for the `articles` table and assert all four columns exist: `score_relevance`, `score_significance`, `score_credibility`, `score_uniqueness`.\n- Assert each column has type `NUMERIC` and allows NULL.\n- Assert `composite_score` column exists.\n\n## 4. Integration Tests – Scoring Pipeline\n\n- Insert a test article with known body content into the `articles` table.\n- Run the scoring step against it (mock Claude to return `{ relevance: 70, significance: 50, credibility: 80, uniqueness: 40 }`).\n- Assert the article row in `articles` has:\n  - `score_relevance = 70`\n  - `score_significance = 50`\n  - `score_credibility = 80`\n  - `score_uniqueness = 40`\n  - `composite_score = (70×0.40)+(50×0.30)+(80×0.20)+(40×0.10)` = `28+15+16+4` = **63.0**\n- Assert this article is **excluded** under the standard threshold (63 < 65).\n- Assert this article is **included** under the low-volume threshold (63 ≥ 55).\n\n## 5. Integration Tests – Threshold Gating\n\n- Prepare a set of 10 articles with composite scores ranging from 40 to 90.\n- Run the full pipeline; assert only articles with `composite_score >= 65` are passed to `rankAndSelectArticles`.\n- Reduce the candidate set to 3 articles (all scoring between 55–64); assert all three pass through under the low-volume threshold.\n- Reduce the candidate set to 3 articles with scores below 55; assert all are excluded even under low-volume threshold.\n\n## 6. Malformed Claude Response Handling\n\n- Mock Claude to return an incomplete JSON (e.g. missing `uniqueness`).\n- Assert the pipeline does not crash; the missing dimension defaults to `0` and a warning is logged.\n- Assert `composite_score` is computed using `0` for the missing dimension.\n\n## 7. Backward Compatibility\n\n- Query articles with `NULL` dimension scores; assert they are treated as unscored and re-scored on the next run (not erroneously included or excluded based on stale data).\n\n## 8. Logging Verification\n\n- Run the pipeline in a test environment and capture stdout.\n- Assert log lines contain `[score] id=... R=... S=... C=... U=... composite=...` for each article.\n- Assert a summary log line contains `threshold=`, `candidates=`, and `qualified=` values.\n",
+        "status": "pending",
+        "dependencies": [
+          "47",
+          "51",
+          "52",
+          "19"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "54",
+        "title": "Implement Mid-Game Article Detection and Holding Logic",
+        "description": "Detect articles fetched during an active game window by evaluating article timestamps and live-game keywords, flag them, hold them from newsletter inclusion, and re-evaluate 3 hours after the scheduled game end before allowing them into the pipeline.",
+        "details": "## Overview\n\nInject a mid-game article detection step into the `run-content-pipeline` Edge Function, running **after** articles are fetched and scored but **before** duplicate suppression and `rankAndSelectArticles`. Articles flagged as mid-game content are quarantined in a new `held_articles` table and re-evaluated on a scheduled basis.\n\n---\n\n## Step 1: Database — Create `held_articles` Table\n\n```sql\nCREATE TABLE held_articles (\n  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),\n  article_id uuid REFERENCES articles(id) ON DELETE CASCADE,\n  team_id uuid REFERENCES teams(id),\n  pipeline_run_id text NOT NULL,          -- identifier for the originating pipeline run\n  flagged_at timestamptz DEFAULT now(),\n  game_id text,                           -- external game/event identifier if available\n  scheduled_game_end timestamptz NOT NULL, -- estimated game end time\n  re_evaluate_at timestamptz NOT NULL,    -- scheduled_game_end + 3 hours\n  status text DEFAULT 'held'              -- 'held' | 'released' | 'discarded'\n);\n\nCREATE INDEX idx_held_articles_re_evaluate_at ON held_articles(re_evaluate_at);\nCREATE INDEX idx_held_articles_status ON held_articles(status);\n```\n\n---\n\n## Step 2: Game Schedule Lookup Utility\n\nCreate `supabase/functions/_shared/game-schedule.ts`:\n\n```typescript\nexport interface GameWindow {\n  gameId: string;\n  teamId: string;\n  scheduledStart: Date;\n  scheduledEnd: Date;   // scheduledStart + 3.5 hours (typical NFL game)\n}\n\n/**\n * Returns the active game window for a team at a given moment, or null if no game is in progress.\n * Queries a `game_schedule` table (or external NFL schedule API) for games where\n * scheduledStart <= now <= scheduledEnd + 30min buffer.\n */\nexport async function getActiveGameWindow(\n  supabase: SupabaseClient,\n  teamId: string,\n  atTime: Date = new Date()\n): Promise<GameWindow | null> {\n  const bufferMs = 30 * 60 * 1000; // 30-min post-game buffer\n  const { data: games } = await supabase\n    .from('game_schedule')\n    .select('*')\n    .eq('team_id', teamId)\n    .lte('scheduled_start', atTime.toISOString())\n    .gte('scheduled_end', new Date(atTime.getTime() - bufferMs).toISOString())\n    .limit(1)\n    .single();\n\n  if (!games) return null;\n  return {\n    gameId: games.id,\n    teamId: games.team_id,\n    scheduledStart: new Date(games.scheduled_start),\n    scheduledEnd: new Date(games.scheduled_end),\n  };\n}\n```\n\n> **Note:** If a `game_schedule` table does not yet exist, create it with columns: `id`, `team_id`, `scheduled_start`, `scheduled_end`, `opponent`, `home_away`. Seed it from an NFL schedule API or manually.\n\n---\n\n## Step 3: Mid-Game Keyword Detection\n\nCreate `supabase/functions/_shared/midgame-detector.ts`:\n\n```typescript\nconst MID_GAME_KEYWORDS = [\n  'live', 'in progress', 'in-progress', 'halftime', 'half time',\n  'q1', 'q2', 'q3', 'q4', 'first quarter', 'second quarter',\n  'third quarter', 'fourth quarter', 'overtime', 'ot',\n  'score update', 'live update', 'live blog', 'game thread',\n  'breaking', 'just in', 'developing',\n];\n\nexport interface MidGameFlagResult {\n  isMidGame: boolean;\n  matchedKeywords: string[];\n  reason: string;\n}\n\nexport function detectMidGameArticle(\n  article: { title: string; description?: string; published_at: string },\n  gameWindow: GameWindow | null\n): MidGameFlagResult {\n  if (!gameWindow) {\n    return { isMidGame: false, matchedKeywords: [], reason: 'No active game window' };\n  }\n\n  const articleTime = new Date(article.published_at);\n  const isWithinGameWindow =\n    articleTime >= gameWindow.scheduledStart &&\n    articleTime <= new Date(gameWindow.scheduledEnd.getTime() + 30 * 60 * 1000);\n\n  if (!isWithinGameWindow) {\n    return { isMidGame: false, matchedKeywords: [], reason: 'Article outside game window' };\n  }\n\n  const searchText = `${article.title} ${article.description ?? ''}`.toLowerCase();\n  const matched = MID_GAME_KEYWORDS.filter(kw => searchText.includes(kw));\n\n  if (matched.length > 0) {\n    return {\n      isMidGame: true,\n      matchedKeywords: matched,\n      reason: `Article published during game window and contains keywords: ${matched.join(', ')}`,\n    };\n  }\n\n  // Even without keywords, if published strictly during game window, flag it\n  return {\n    isMidGame: true,\n    matchedKeywords: [],\n    reason: 'Article published during active game window (timestamp match)',\n  };\n}\n```\n\n---\n\n## Step 4: Integrate into `run-content-pipeline`\n\nIn `supabase/functions/run-content-pipeline/index.ts`, after scoring and before duplicate suppression:\n\n```typescript\nimport { getActiveGameWindow } from '../_shared/game-schedule.ts';\nimport { detectMidGameArticle } from '../_shared/midgame-detector.ts';\n\n// After scoring, before duplicate suppression:\nconst gameWindow = await getActiveGameWindow(supabase, teamId);\nconst RE_EVALUATE_HOURS = 3;\n\nconst passedArticles: Article[] = [];\nconst heldArticleIds: string[] = [];\n\nfor (const article of scoredArticles) {\n  const flagResult = detectMidGameArticle(article, gameWindow);\n  if (flagResult.isMidGame) {\n    const reEvaluateAt = gameWindow\n      ? new Date(gameWindow.scheduledEnd.getTime() + RE_EVALUATE_HOURS * 60 * 60 * 1000)\n      : new Date(Date.now() + RE_EVALUATE_HOURS * 60 * 60 * 1000);\n\n    await supabase.from('held_articles').insert({\n      article_id: article.id,\n      team_id: teamId,\n      pipeline_run_id: pipelineRunId,\n      game_id: gameWindow?.gameId ?? null,\n      scheduled_game_end: gameWindow?.scheduledEnd.toISOString(),\n      re_evaluate_at: reEvaluateAt.toISOString(),\n      status: 'held',\n    });\n\n    // Update article status in articles table\n    await supabase\n      .from('articles')\n      .update({ status: 'held_midgame', hold_reason: flagResult.reason })\n      .eq('id', article.id);\n\n    heldArticleIds.push(article.id);\n    console.log(`[MidGame] Held article \"${article.title}\" — ${flagResult.reason}`);\n  } else {\n    passedArticles.push(article);\n  }\n}\n\n// Continue pipeline with passedArticles only\n```\n\n> Add `status` and `hold_reason` columns to the `articles` table if not present:\n> ```sql\n> ALTER TABLE articles ADD COLUMN IF NOT EXISTS status text DEFAULT 'active';\n> ALTER TABLE articles ADD COLUMN IF NOT EXISTS hold_reason text;\n> ```\n\n---\n\n## Step 5: Re-Evaluation Scheduled Function\n\nCreate `supabase/functions/re-evaluate-held-articles/index.ts`:\n\n```typescript\nDeno.serve(async () => {\n  const now = new Date();\n\n  // Fetch all held articles whose re_evaluate_at has passed\n  const { data: dueArticles } = await supabase\n    .from('held_articles')\n    .select('*, articles(*)')\n    .eq('status', 'held')\n    .lte('re_evaluate_at', now.toISOString());\n\n  if (!dueArticles || dueArticles.length === 0) {\n    return new Response(JSON.stringify({ released: 0 }), { status: 200 });\n  }\n\n  let released = 0;\n  for (const held of dueArticles) {\n    // Re-check: is the game still in progress?\n    const gameWindow = await getActiveGameWindow(supabase, held.team_id);\n    if (gameWindow) {\n      // Game still active — extend hold by 1 hour\n      await supabase\n        .from('held_articles')\n        .update({ re_evaluate_at: new Date(now.getTime() + 60 * 60 * 1000).toISOString() })\n        .eq('id', held.id);\n      continue;\n    }\n\n    // Game over — release article back into active pool\n    await supabase\n      .from('held_articles')\n      .update({ status: 'released' })\n      .eq('id', held.id);\n\n    await supabase\n      .from('articles')\n      .update({ status: 'active', hold_reason: null })\n      .eq('id', held.article_id);\n\n    released++;\n  }\n\n  return new Response(JSON.stringify({ released, total: dueArticles.length }), { status: 200 });\n});\n```\n\nSchedule this function via a Supabase cron job (pg_cron) to run every 30 minutes:\n```sql\nSELECT cron.schedule(\n  're-evaluate-held-articles',\n  '*/30 * * * *',\n  $$SELECT net.http_post(url := 'https://<project>.supabase.co/functions/v1/re-evaluate-held-articles', headers := '{\"Authorization\": \"Bearer <service_role_key>\"}')$$\n);\n```\n\n---\n\n## Step 6: Admin Notification\n\nReuse the existing `notifyAdmin` helper (Task 38) to alert on held articles:\n```typescript\nif (heldArticleIds.length > 0) {\n  await notifyAdmin({\n    type: 'pipeline_error', // or add a new 'articles_held_midgame' type\n    data: {\n      teamId,\n      heldCount: heldArticleIds.length,\n      reEvaluateAt: reEvaluateAt.toISOString(),\n      articleTitles: heldArticles.map(a => a.title),\n    },\n  });\n}\n```\n",
+        "testStrategy": "## Unit Tests\n\n### 1. `detectMidGameArticle` — Keyword Detection\n- Create a mock article with `title: \"Live Q3 Update: Seahawks vs 49ers\"` and a `gameWindow` covering `published_at`. Verify `isMidGame: true` and `matchedKeywords` includes `'live'` and `'q3'`.\n- Create an article with `title: \"Seahawks sign new linebacker\"` published during a game window. Verify `isMidGame: true` even without keywords (timestamp-only flag).\n- Create an article published 5 hours before game start. Verify `isMidGame: false`.\n- Pass `gameWindow: null` for any article. Verify `isMidGame: false`.\n\n### 2. `getActiveGameWindow` — Schedule Lookup\n- Insert a test game row with `scheduled_start = now - 1 hour`, `scheduled_end = now + 2 hours`. Call `getActiveGameWindow` and verify it returns the game.\n- Insert a game that ended 2 hours ago. Verify `null` is returned (outside buffer).\n- Insert a future game starting in 1 hour. Verify `null` is returned.\n\n---\n\n## Integration Tests\n\n### 3. Pipeline Holding Behavior\n- Seed a game in `game_schedule` for the test team covering the current time window.\n- Seed two articles: one with `title: \"Halftime Report: Seahawks lead 14-7\"` (published now) and one with `title: \"Seahawks injury report\"` (published yesterday).\n- Run `run-content-pipeline` for the test team.\n- Verify the halftime article has `status = 'held_midgame'` in the `articles` table.\n- Verify a row exists in `held_articles` with `status = 'held'` and `re_evaluate_at = scheduled_game_end + 3 hours`.\n- Verify the injury report article (published outside game window) passes through normally.\n- Verify `rankAndSelectArticles` is called only with non-held articles.\n\n### 4. Re-Evaluation — Release Path\n- Insert a `held_articles` row with `re_evaluate_at = now - 1 minute`, `status = 'held'`, and no active game window for the team.\n- Trigger `re-evaluate-held-articles` function manually.\n- Verify the `held_articles` row is updated to `status = 'released'`.\n- Verify the corresponding `articles` row has `status = 'active'` and `hold_reason = null`.\n\n### 5. Re-Evaluation — Game Still Active (Extend Hold)\n- Insert a `held_articles` row with `re_evaluate_at = now - 1 minute` but ensure an active game window still exists for the team.\n- Trigger `re-evaluate-held-articles`.\n- Verify `re_evaluate_at` is extended by 1 hour and `status` remains `'held'`.\n\n### 6. Admin Notification\n- Run the pipeline with held articles and verify `notifyAdmin` is called with the correct held article count and titles.\n\n### 7. Edge Cases\n- Run pipeline when no game is scheduled — verify zero articles are held.\n- Run pipeline with an article containing no keywords but published exactly at `scheduled_start` — verify it is flagged.\n- Verify that articles already in `held_articles` with `status = 'released'` are not re-held on subsequent pipeline runs (check for duplicate insert guard).\n",
+        "status": "pending",
+        "dependencies": [
+          "19",
+          "26",
+          "38",
+          "51"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "55",
+        "title": "Implement Paywall and Fetch Quality Detection in Content Pipeline",
+        "description": "After fetching full article bodies, validate a minimum of 200 words and detect paywall/boilerplate indicators. Discard flagged articles, track paywall rates per source, and surface sources exceeding 30% paywall rate in the admin Source Queue.",
+        "details": "## Overview\n\nThis task adds a post-fetch validation layer inside the `run-content-pipeline` Edge Function, immediately after full article body extraction (Task 46). It enforces content quality and detects paywalled or boilerplate pages before any article proceeds to scoring or summarization.\n\n---\n\n## Step 1: Word Count Validation\n\nAfter extracting readable text from the article URL, count words in the extracted body:\n\n```typescript\nfunction countWords(text: string): number {\n  return text.trim().split(/\\s+/).filter(Boolean).length;\n}\n\nconst wordCount = countWords(extractedBody);\nif (wordCount < 200) {\n  // Discard article — insufficient content\n  logFetchQuality(sourceId, articleUrl, 'insufficient_content', `Word count: ${wordCount}`);\n  continue;\n}\n```\n\n---\n\n## Step 2: Paywall Indicator Detection\n\nDefine a list of known paywall and sign-in prompt patterns (case-insensitive regex or substring match against the extracted text and/or raw HTML):\n\n```typescript\nconst PAYWALL_PATTERNS = [\n  /subscribe to (continue|read|access)/i,\n  /sign in to (continue|read|access|view)/i,\n  /log in to (continue|read|access|view)/i,\n  /this (article|content|story) is (for|available to) (subscribers|members)/i,\n  /create a free account to (read|continue|access)/i,\n  /you('ve| have) reached your (free article|monthly) limit/i,\n  /unlock (this|full) (article|story|content)/i,\n  /premium (content|article|story)/i,\n  /already a subscriber\\?/i,\n  /get unlimited access/i,\n];\n\nconst BOILERPLATE_PATTERNS = [\n  /we use cookies to/i,\n  /by (clicking|continuing|using this site) you agree to our (cookie|privacy)/i,\n  /cookie (policy|consent|settings)/i,\n  /accept all cookies/i,\n  /manage cookie preferences/i,\n];\n\nfunction detectPaywall(text: string): boolean {\n  return PAYWALL_PATTERNS.some(pattern => pattern.test(text));\n}\n\nfunction detectBoilerplate(text: string): boolean {\n  return BOILERPLATE_PATTERNS.some(pattern => pattern.test(text));\n}\n```\n\nApply both checks to the extracted body text (and optionally the raw HTML before stripping):\n\n```typescript\nconst isPaywalled = detectPaywall(extractedBody) || detectPaywall(rawHtml);\nconst isBoilerplate = detectBoilerplate(extractedBody);\n\nif (isPaywalled || isBoilerplate) {\n  const reason = isPaywalled ? 'paywall_detected' : 'boilerplate_detected';\n  logFetchQuality(sourceId, articleUrl, reason, null);\n  incrementPaywallCount(sourceId);\n  continue; // Discard article\n}\n```\n\n---\n\n## Step 3: Fetch Quality Logging\n\nAdd a `fetch_quality_logs` table (or extend `validation_logs`) to record each discard event:\n\n```sql\nCREATE TABLE fetch_quality_logs (\n  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),\n  source_id uuid REFERENCES sources(id) ON DELETE CASCADE,\n  article_url text NOT NULL,\n  discard_reason text NOT NULL, -- 'insufficient_content' | 'paywall_detected' | 'boilerplate_detected'\n  detail text,\n  created_at timestamptz DEFAULT now()\n);\n```\n\n---\n\n## Step 4: Per-Source Paywall Rate Tracking\n\nAfter each pipeline run, compute the paywall rate per source and update the `sources` table:\n\n```typescript\nasync function updateSourcePaywallRate(sourceId: string): Promise<void> {\n  // Count total fetch attempts for this source in last 30 days\n  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();\n\n  const { count: totalAttempts } = await supabase\n    .from('fetch_quality_logs')\n    .select('*', { count: 'exact', head: true })\n    .eq('source_id', sourceId)\n    .gte('created_at', since);\n\n  const { count: paywallHits } = await supabase\n    .from('fetch_quality_logs')\n    .select('*', { count: 'exact', head: true })\n    .eq('source_id', sourceId)\n    .in('discard_reason', ['paywall_detected', 'boilerplate_detected'])\n    .gte('created_at', since);\n\n  const paywallRate = totalAttempts > 0 ? paywallHits / totalAttempts : 0;\n\n  await supabase\n    .from('sources')\n    .update({\n      paywall_rate: paywallRate,\n      status: paywallRate > 0.3 ? 'flagged' : undefined, // only downgrade, never auto-approve\n    })\n    .eq('id', sourceId);\n\n  if (paywallRate > 0.3) {\n    await notifyAdmin({\n      type: 'source_flagged',\n      data: {\n        url: sourceUrl,\n        reason: `Paywall rate exceeded 30% (${Math.round(paywallRate * 100)}%)`,\n        source_id: sourceId,\n      },\n    });\n  }\n}\n```\n\nAdd `paywall_rate float DEFAULT 0` column to the `sources` table:\n\n```sql\nALTER TABLE sources ADD COLUMN IF NOT EXISTS paywall_rate float DEFAULT 0;\n```\n\n---\n\n## Step 5: Admin Source Queue Integration\n\nUpdate Task 33's Source Queue view (`src/pages/admin/SourceQueue.tsx`) to:\n- Display a **Paywall Rate** column (e.g., \"23%\" in yellow if >15%, red if >30%).\n- Show sources with `status = 'flagged'` due to paywall rate prominently.\n- Add a tooltip or detail row explaining the flag reason (paywall rate vs. other flags).\n\nQuery update:\n```typescript\nconst { data: sources } = await supabase\n  .from('sources')\n  .select('*, teams(name)')\n  .in('status', ['pending', 'flagged'])\n  .order('paywall_rate', { ascending: false }); // surface high-paywall sources first\n```\n\n---\n\n## Step 6: Helper Function Wiring\n\nEnsure `logFetchQuality` and `updateSourcePaywallRate` are called within the article fetch loop in `run-content-pipeline/index.ts`, and that `updateSourcePaywallRate` is called once per unique source after all articles for that source have been processed in the current run.\n\n---\n\n## Edge Cases\n- If a source returns HTTP 402, 401, or redirects to a login page, treat as paywall regardless of body content.\n- If extracted body is empty (0 words), log as `insufficient_content` and count toward paywall rate only if a paywall pattern was detected in the raw HTML.\n- Paywall rate is computed over a rolling 30-day window to avoid penalizing sources for temporary issues.\n- Sources with fewer than 5 total fetch attempts in the window are exempt from auto-flagging (insufficient sample size).",
+        "testStrategy": "## Unit Tests\n\n### Word Count Validation\n- Pass a string with exactly 199 words → verify article is discarded with reason `insufficient_content`.\n- Pass a string with exactly 200 words → verify article proceeds to scoring.\n- Pass an empty string → verify article is discarded.\n\n### Paywall Detection\n- Pass body text containing \"Subscribe to continue reading\" → verify `detectPaywall` returns `true`.\n- Pass body text containing \"Sign in to access this article\" → verify `detectPaywall` returns `true`.\n- Pass body text containing \"We use cookies to improve your experience. Accept all cookies.\" → verify `detectBoilerplate` returns `true`.\n- Pass a clean 300-word article body → verify both functions return `false`.\n\n### HTTP Status Handling\n- Mock a fetch response with HTTP 402 → verify article is discarded and logged as `paywall_detected`.\n- Mock a fetch response with HTTP 401 → verify article is discarded and logged as `paywall_detected`.\n\n---\n\n## Integration Tests\n\n### Pipeline Discard Flow\n1. Insert a test source with a known paywalled URL (e.g., a URL that returns paywall HTML).\n2. Run the `run-content-pipeline` function for that source's team.\n3. Verify no article from that URL appears in the `articles` table.\n4. Verify a row exists in `fetch_quality_logs` with `discard_reason = 'paywall_detected'` for that URL.\n\n### Paywall Rate Calculation\n1. Insert 10 `fetch_quality_logs` rows for a source: 4 with `paywall_detected`, 6 with successful fetches (simulate by inserting non-discard rows or tracking total attempts).\n2. Call `updateSourcePaywallRate` for that source.\n3. Verify `sources.paywall_rate` is updated to `0.4` (40%).\n4. Verify `sources.status` is set to `'flagged'`.\n5. Verify admin notification email is sent with the correct paywall rate.\n\n### Below-Threshold Source\n1. Insert 10 fetch logs for a source: 2 paywall, 8 successful.\n2. Call `updateSourcePaywallRate`.\n3. Verify `paywall_rate = 0.2` and `status` is NOT changed to `'flagged'`.\n\n### Insufficient Sample Exemption\n1. Insert only 3 fetch logs for a source, all `paywall_detected`.\n2. Call `updateSourcePaywallRate`.\n3. Verify source is NOT auto-flagged despite 100% paywall rate (fewer than 5 attempts).\n\n---\n\n## Admin Source Queue Tests\n1. Set a source's `paywall_rate` to `0.35` and `status` to `'flagged'` in the database.\n2. Open the admin Source Queue view.\n3. Verify the source appears with a red \"Paywall Rate: 35%\" badge.\n4. Verify the source is sorted to the top of the flagged list.\n5. Verify the Approve/Reject actions still work correctly for paywall-flagged sources.\n\n---\n\n## End-to-End Test\n1. Configure a test source pointing to a URL that returns a paywall page.\n2. Trigger a full pipeline run.\n3. Confirm: article discarded → log created → source paywall_rate updated → (if >30% with ≥5 samples) source flagged → admin email received → Source Queue shows flagged source with paywall rate.",
+        "status": "pending",
+        "dependencies": [
+          "46",
+          "33",
+          "38",
+          "36"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "56",
+        "title": "Implement Summary Freshness Check with Generic Language Detection",
+        "description": "After generating each article summary, call the Claude API to detect generic language that could apply to any team or any week, and regenerate the summary with explicit specificity instructions if generic phrases are detected. Store an `is_generic_summary` boolean flag in the articles table to track quality.",
+        "details": "## Overview\n\nExtend the `summarizeArticles` function in the `run-content-pipeline` Edge Function (built in Task 18) to add a post-generation freshness/specificity check using the Claude API. If the generated summary is flagged as generic, regenerate it with stronger specificity constraints and record the outcome.\n\n---\n\n## Step 1: Add `is_generic_summary` Column to Articles Table\n\nRun the following migration in Supabase:\n\n```sql\nALTER TABLE articles\n  ADD COLUMN IF NOT EXISTS is_generic_summary boolean NOT NULL DEFAULT false;\n```\n\n---\n\n## Step 2: Implement Generic Language Detector\n\nCreate a helper function `isSummaryGeneric` that calls Claude to evaluate the summary:\n\n```typescript\nasync function isSummaryGeneric(\n  summary: string,\n  teamName: string,\n  articleDate: string\n): Promise<{ isGeneric: boolean; reason: string }> {\n  const prompt = `You are a quality checker for NFL newsletter summaries.\n\nEvaluate the following summary and determine if it contains GENERIC language that could apply to ANY NFL team or ANY week — language that lacks specificity to the team, players, events, or date context.\n\nTeam: ${teamName}\nArticle Date: ${articleDate}\nSummary: \"${summary}\"\n\nGeneric language examples to flag:\n- \"The team is preparing for their upcoming game\"\n- \"Players are working hard in practice\"\n- \"The coaching staff is focused on improvement\"\n- \"Fans are excited about the season\"\n- \"The team faces challenges ahead\"\n\nA summary is SPECIFIC if it mentions:\n- Named players (e.g., \"Geno Smith\", \"DK Metcalf\")\n- Specific game opponents, scores, or dates\n- Concrete stats or injury details\n- Specific plays, schemes, or transactions\n\nReply with JSON only:\n{\n  \"is_generic\": true | false,\n  \"reason\": \"brief explanation\"\n}`;\n\n  const response = await anthropic.messages.create({\n    model: 'claude-3-haiku-20240307',\n    max_tokens: 200,\n    messages: [{ role: 'user', content: prompt }],\n  });\n\n  const text = response.content[0].type === 'text' ? response.content[0].text : '{}';\n  const parsed = JSON.parse(text.trim());\n  return { isGeneric: parsed.is_generic ?? false, reason: parsed.reason ?? '' };\n}\n```\n\nUse `claude-3-haiku` for this check to minimize latency and cost since it is a lightweight classification task.\n\n---\n\n## Step 3: Implement Regeneration with Specificity Instructions\n\n```typescript\nasync function regenerateSpecificSummary(\n  article: Article,\n  teamName: string,\n  articleDate: string\n): Promise<string> {\n  const prompt = `Summarize this NFL article in 2-3 sentences for a busy fan.\n\nCRITICAL REQUIREMENTS — your summary MUST:\n1. Mention at least one specific player name from the article\n2. Reference the specific team: ${teamName}\n3. Include a concrete detail (stat, score, injury status, transaction, or game date)\n4. Be grounded in the date context: ${articleDate}\n5. NOT use vague phrases like \"the team is preparing\" or \"players are working hard\"\n\nArticle Title: ${article.title}\nContent: ${article.raw_content.slice(0, 3000)}\n\nReply with JSON only:\n{\n  \"summary\": \"your specific 2-3 sentence summary\",\n  \"category\": \"injury|trade|game_recap|analysis|opinion|other\"\n}`;\n\n  const response = await anthropic.messages.create({\n    model: 'claude-3-5-sonnet-20241022',\n    max_tokens: 300,\n    messages: [{ role: 'user', content: prompt }],\n  });\n\n  const text = response.content[0].type === 'text' ? response.content[0].text : '{}';\n  const parsed = JSON.parse(text.trim());\n  return parsed.summary ?? article.summary;\n}\n```\n\n---\n\n## Step 4: Integrate into `summarizeArticles` Pipeline\n\nModify the existing `summarizeArticles` function to call the freshness check after each summary is generated:\n\n```typescript\nasync function summarizeArticles(articles: Article[], teamName: string): Promise<Article[]> {\n  const summarized = [];\n\n  for (const article of articles) {\n    try {\n      // --- Existing summarization logic (Task 18) ---\n      let summary = await generateInitialSummary(article, teamName);\n      let category = article.category;\n      let isGeneric = false;\n\n      // --- NEW: Freshness check ---\n      const articleDate = article.published_at\n        ? new Date(article.published_at).toISOString().split('T')[0]\n        : new Date().toISOString().split('T')[0];\n\n      const { isGeneric: flagged, reason } = await isSummaryGeneric(summary, teamName, articleDate);\n\n      if (flagged) {\n        console.warn(`Generic summary detected for article ${article.id}: ${reason}. Regenerating...`);\n        summary = await regenerateSpecificSummary(article, teamName, articleDate);\n        isGeneric = true; // Mark as was-generic even after regeneration for tracking\n      }\n\n      // --- Update article in DB ---\n      await supabase\n        .from('articles')\n        .update({\n          summary,\n          category,\n          is_generic_summary: isGeneric,\n        })\n        .eq('id', article.id);\n\n      summarized.push({ ...article, summary, category, is_generic_summary: isGeneric });\n    } catch (err) {\n      console.error(`Failed to summarize article ${article.id}:`, err);\n      summarized.push(article);\n    }\n  }\n\n  return summarized;\n}\n```\n\n---\n\n## Step 5: Admin Visibility (Optional Enhancement)\n\nIn the Content Preview view (Task 34), surface articles where `is_generic_summary = true` with a yellow warning badge so editors can manually review or override before sending.\n\n---\n\n## Considerations\n\n- **Cost control**: Use `claude-3-haiku` for the detection step and `claude-3-5-sonnet` only for regeneration to balance cost and quality.\n- **Rate limiting**: Add a small delay (`await new Promise(r => setTimeout(r, 300))`) between API calls if hitting rate limits.\n- **Fallback**: If the freshness check itself fails (API error, JSON parse error), log the error and proceed with the original summary — do not block the pipeline.\n- **`is_generic_summary` semantics**: Set to `true` if the original summary was flagged as generic (even if regenerated), so the field serves as a quality signal for monitoring.\n- **Idempotency**: If the pipeline re-runs for the same article, the check should re-evaluate and overwrite the flag.",
+        "testStrategy": "## Unit Tests\n\n### 1. Generic Detection — True Positive\n- Pass a clearly generic summary like `\"The team is preparing for their upcoming game and players are working hard in practice.\"` with team `\"Seattle Seahawks\"` and a date.\n- Verify `isSummaryGeneric` returns `{ isGeneric: true, reason: <non-empty string> }`.\n\n### 2. Generic Detection — True Negative\n- Pass a specific summary like `\"Geno Smith completed 28 of 38 passes for 312 yards as the Seattle Seahawks defeated the 49ers 30-23 on Sunday.\"` \n- Verify `isSummaryGeneric` returns `{ isGeneric: false }`.\n\n### 3. Regeneration Quality\n- Trigger regeneration for a known generic summary.\n- Verify the regenerated summary contains at least one of: a player name, a score, a stat, or a specific date reference.\n- Verify the regenerated summary does NOT contain phrases like \"the team is preparing\" or \"players are working hard\".\n\n## Integration Tests\n\n### 4. End-to-End Pipeline Run\n- Run the `run-content-pipeline` Edge Function for a test team (e.g., Seattle Seahawks) with a mix of articles likely to produce generic and specific summaries.\n- Query `articles` table and verify:\n  - All articles have a non-null `summary`.\n  - All articles have a non-null `is_generic_summary` boolean value.\n  - Articles that were regenerated have `is_generic_summary = true`.\n\n### 5. Database Column Verification\n- Confirm `is_generic_summary` column exists on `articles` table with type `boolean` and default `false`.\n- Insert a test article without setting `is_generic_summary` and verify it defaults to `false`.\n\n### 6. Fallback Behavior\n- Mock the Claude API to throw an error during the freshness check.\n- Verify the pipeline continues without crashing and the original summary is preserved.\n- Verify `is_generic_summary` defaults to `false` (not set) when the check fails.\n\n### 7. Rate Limiting / Retry\n- Simulate a high volume of articles (10+) and verify all are processed without hitting unhandled rate limit errors.\n- Verify delays between API calls are respected.\n\n## Monitoring / Observability\n- After a full pipeline run, query: `SELECT COUNT(*), is_generic_summary FROM articles GROUP BY is_generic_summary;`\n- Verify the ratio of generic summaries is reasonable (e.g., less than 20% flagged in a healthy run).\n- Check Edge Function logs for `\"Generic summary detected\"` warnings and confirm they correspond to `is_generic_summary = true` rows in the DB.",
+        "status": "pending",
+        "dependencies": [
+          "18",
+          "26"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "57",
+        "title": "Implement Summary Contradiction Check Against Article Headline",
+        "description": "After generating an article summary, call the Claude API to verify the summary does not contradict or misrepresent the article's headline, regenerating the summary if a contradiction is detected. Store the result in a new `contradicts_headline` boolean column on the `articles` table.",
+        "details": "## Overview\n\nExtend the existing article summarization pipeline (Task 18) to include a post-generation contradiction check using the Claude API. This guard ensures no summary that contradicts its own headline is ever published.\n\n---\n\n## Step 1: Database Migration — Add `contradicts_headline` Column\n\nRun the following migration in Supabase:\n\n```sql\nALTER TABLE articles\n  ADD COLUMN IF NOT EXISTS contradicts_headline boolean NOT NULL DEFAULT false;\n```\n\n---\n\n## Step 2: Implement `checkSummaryContradiction` Helper\n\nAdd this function to the `run-content-pipeline` Edge Function (or a shared utility file such as `_shared/contradiction-check.ts`):\n\n```typescript\nasync function checkSummaryContradiction(\n  headline: string,\n  summary: string,\n  claudeApiKey: string\n): Promise<{ contradicts: boolean; reason: string }> {\n  const prompt = `You are a fact-checking assistant. Your job is to determine whether a news summary contradicts or misrepresents its own headline.\n\nHeadline: \"${headline}\"\nSummary: \"${summary}\"\n\nDoes the summary contradict or materially misrepresent the headline? Consider:\n- Factual contradictions (e.g., headline says player is OUT, summary says player is IN)\n- Sentiment inversions (e.g., headline is positive, summary is negative about the same event)\n- Subject mismatches (e.g., headline is about one player, summary focuses on a different player in a contradictory way)\n\nReply with JSON only, no markdown:\n{\n  \"contradicts\": true | false,\n  \"reason\": \"brief explanation\"\n}`;\n\n  const response = await fetch('https://api.anthropic.com/v1/messages', {\n    method: 'POST',\n    headers: {\n      'x-api-key': claudeApiKey,\n      'anthropic-version': '2023-06-01',\n      'content-type': 'application/json',\n    },\n    body: JSON.stringify({\n      model: 'claude-3-haiku-20240307',\n      max_tokens: 256,\n      messages: [{ role: 'user', content: prompt }],\n    }),\n  });\n\n  const data = await response.json();\n  const text = data.content?.[0]?.text ?? '{\"contradicts\": false, \"reason\": \"parse error\"}';\n\n  try {\n    return JSON.parse(text);\n  } catch {\n    return { contradicts: false, reason: 'Failed to parse contradiction check response' };\n  }\n}\n```\n\n---\n\n## Step 3: Integrate Contradiction Check into `summarizeArticles`\n\nModify the existing `summarizeArticles` function (Task 18) to call the contradiction check after each summary is generated. Allow up to **2 regeneration attempts** before giving up and flagging the article:\n\n```typescript\nconst MAX_REGENERATION_ATTEMPTS = 2;\n\nasync function summarizeArticles(articles: Article[], teamName: string): Promise<Article[]> {\n  const claudeApiKey = Deno.env.get('ANTHROPIC_API_KEY')!;\n  const summarized = [];\n\n  for (const article of articles) {\n    try {\n      let summary = '';\n      let category = '';\n      let contradicts = false;\n      let attempt = 0;\n\n      while (attempt <= MAX_REGENERATION_ATTEMPTS) {\n        // --- existing summarization call ---\n        const result = await generateSummary(article, teamName, claudeApiKey);\n        summary = result.summary;\n        category = result.category;\n\n        // --- new contradiction check ---\n        const check = await checkSummaryContradiction(article.title, summary, claudeApiKey);\n        contradicts = check.contradicts;\n\n        if (!contradicts) break;\n\n        console.warn(\n          `[contradiction] Attempt ${attempt + 1}: summary contradicts headline for article ${article.id}. Reason: ${check.reason}`\n        );\n        attempt++;\n      }\n\n      // Persist result — if still contradicting after max attempts, flag it and skip publishing\n      const { error } = await supabase\n        .from('articles')\n        .update({\n          summary,\n          category,\n          contradicts_headline: contradicts,\n        })\n        .eq('id', article.id);\n\n      if (error) throw error;\n\n      if (!contradicts) {\n        summarized.push({ ...article, summary, category, contradicts_headline: false });\n      } else {\n        console.error(\n          `[contradiction] Article ${article.id} flagged as contradicts_headline=true after ${MAX_REGENERATION_ATTEMPTS} attempts. Excluding from newsletter.`\n        );\n        // Do NOT push to summarized — article will not be published\n      }\n    } catch (err) {\n      console.error(`Failed to summarize article ${article.id}:`, err);\n    }\n  }\n\n  return summarized;\n}\n```\n\n---\n\n## Step 4: Downstream Filtering\n\nIn `rankAndSelectArticles` (or wherever articles are filtered before newsletter assembly), add an explicit guard:\n\n```typescript\nconst eligibleArticles = articles.filter(a => !a.contradicts_headline);\n```\n\nThis ensures that even if a contradicting article somehow slips through, it is never included in a newsletter.\n\n---\n\n## Step 5: Admin Visibility (Optional Enhancement)\n\nIn the Content Preview view (Task 34), surface a warning badge on any article where `contradicts_headline = true` so admins are aware of flagged content during manual review.\n\n---\n\n## Considerations\n\n- **Cost efficiency**: Use `claude-3-haiku` for the contradiction check (fast and cheap) rather than a larger model.\n- **Rate limiting**: Add a small delay (`await new Promise(r => setTimeout(r, 300))`) between Claude calls if rate limits are hit.\n- **Logging**: Log all contradiction detections with article ID, headline, summary, and reason for auditability.\n- **Null safety**: If the headline is missing or empty, skip the contradiction check and default `contradicts_headline` to `false`.\n- **Idempotency**: If the pipeline re-runs for the same article, re-run the contradiction check and update the column accordingly.\n",
+        "testStrategy": "## 1. Database Migration Verification\n- Run `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'articles' AND column_name = 'contradicts_headline';` and confirm the column exists with type `boolean` and default `false`.\n\n## 2. Unit Test — `checkSummaryContradiction` Helper\n- **True contradiction**: Pass headline `\"Seahawks QB Wilson ruled OUT for Sunday\"` and summary `\"Wilson is confirmed to start Sunday after a full week of practice.\"` — verify `contradicts: true` is returned.\n- **No contradiction**: Pass headline `\"Seahawks sign veteran wide receiver\"` and summary `\"Seattle added an experienced WR to bolster their receiving corps.\"` — verify `contradicts: false` is returned.\n- **Malformed Claude response**: Mock the Claude API to return invalid JSON and verify the function gracefully defaults to `{ contradicts: false }` without throwing.\n\n## 3. Integration Test — Regeneration Loop\n- Mock the Claude summarization call to return a contradicting summary on the first call and a valid summary on the second call.\n- Run `summarizeArticles` for a single article and verify:\n  - The function made exactly 2 summarization calls.\n  - The final `contradicts_headline` value stored in the `articles` table is `false`.\n  - The article is included in the returned `summarized` array.\n\n## 4. Integration Test — Max Attempts Exceeded\n- Mock the Claude summarization call to always return a contradicting summary.\n- Run `summarizeArticles` for a single article and verify:\n  - Exactly `MAX_REGENERATION_ATTEMPTS + 1` (3) summarization calls were made.\n  - `contradicts_headline = true` is stored in the `articles` table.\n  - The article is **not** included in the returned `summarized` array.\n\n## 5. End-to-End Pipeline Test\n- Run the full `run-content-pipeline` for a test team.\n- Query `SELECT id, title, summary, contradicts_headline FROM articles WHERE team_id = '<test_team_id>' ORDER BY created_at DESC LIMIT 10;`\n- Verify all published articles have `contradicts_headline = false`.\n- Manually inspect 3–5 summaries against their headlines to confirm accuracy.\n\n## 6. Downstream Filtering Guard Test\n- Manually set `contradicts_headline = true` for an article in the database.\n- Run newsletter assembly (Task 26) and verify the flagged article does not appear in the assembled newsletter HTML or article list.\n\n## 7. Logging Verification\n- Trigger a contradiction scenario and verify warning/error log lines appear in the Supabase Edge Function logs with the article ID, attempt number, and reason string.\n\n## 8. Null/Empty Headline Edge Case\n- Insert a test article with a `NULL` or empty `title` and run the pipeline.\n- Verify the contradiction check is skipped and `contradicts_headline` defaults to `false` without errors.\n",
+        "status": "pending",
+        "dependencies": [
+          "18",
+          "26",
+          "51"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "58",
+        "title": "Enforce Summary Length, Tone Rules, and Version Tracking",
+        "description": "Programmatically enforce a maximum 3-sentence limit on article summaries at sentence boundaries, flag summaries containing speculative language (may, could, might) unless those words appear in the original article, and store a `summary_version` integer that increments on each regeneration.",
+        "details": "## Overview\n\nExtend the `summarizeArticles` function in the `run-content-pipeline` Edge Function (Task 18) to add three post-generation enforcement layers: (1) hard truncation at the 3-sentence boundary, (2) speculative language detection against the original article text, and (3) a `summary_version` counter persisted in the `articles` table that increments on every regeneration.\n\n---\n\n## Step 1: Database Migration — Add `summary_version` Column\n\nRun the following migration in Supabase:\n\n```sql\nALTER TABLE articles\n  ADD COLUMN IF NOT EXISTS summary_version integer NOT NULL DEFAULT 1;\n```\n\nAlso ensure the `articles` table has a `summary` text column (already present from Task 18) and a `raw_content` text column for speculative language cross-referencing.\n\n---\n\n## Step 2: Implement `enforceSentenceLimit(summary: string, maxSentences: number): string`\n\nUse a sentence-boundary-aware splitter rather than a naive character split:\n\n```typescript\nexport function enforceSentenceLimit(summary: string, maxSentences: number = 3): string {\n  // Regex matches sentence-ending punctuation followed by whitespace or end-of-string.\n  // Handles abbreviations poorly — use a simple heuristic: split on '. ', '! ', '? '\n  const sentenceEndRegex = /(?<=[.!?])\\s+/g;\n  const sentences: string[] = [];\n  let remaining = summary.trim();\n\n  // Split preserving the terminating punctuation\n  const parts = remaining.split(sentenceEndRegex);\n\n  for (const part of parts) {\n    const trimmed = part.trim();\n    if (trimmed.length > 0) sentences.push(trimmed);\n    if (sentences.length === maxSentences) break;\n  }\n\n  return sentences.join(' ');\n}\n```\n\nEdge cases to handle:\n- Summaries that are already ≤ 3 sentences: return as-is.\n- Summaries with no sentence-ending punctuation: return the full text (treat as one sentence).\n- Trailing whitespace and newlines must be stripped before splitting.\n\n---\n\n## Step 3: Implement `detectSpeculativeLanguage(summary: string, originalContent: string): { flagged: boolean; offendingWords: string[] }`\n\n```typescript\nconst SPECULATIVE_WORDS = ['may', 'could', 'might'];\n\nexport function detectSpeculativeLanguage(\n  summary: string,\n  originalContent: string\n): { flagged: boolean; offendingWords: string[] } {\n  const summaryLower = summary.toLowerCase();\n  const originalLower = originalContent.toLowerCase();\n\n  const offendingWords: string[] = [];\n\n  for (const word of SPECULATIVE_WORDS) {\n    // Match whole-word occurrences in the summary\n    const wordRegex = new RegExp(`\\\\b${word}\\\\b`, 'gi');\n    const inSummary = wordRegex.test(summaryLower);\n\n    if (inSummary) {\n      // Check if the word also appears in the original article\n      const inOriginal = new RegExp(`\\\\b${word}\\\\b`, 'gi').test(originalLower);\n      if (!inOriginal) {\n        offendingWords.push(word);\n      }\n    }\n  }\n\n  return { flagged: offendingWords.length > 0, offendingWords };\n}\n```\n\n---\n\n## Step 4: Integrate into `summarizeArticles` Pipeline\n\nWithin the existing `summarizeArticles` function, after receiving the Claude-generated summary:\n\n```typescript\nasync function summarizeArticles(articles: Article[], teamName: string): Promise<Article[]> {\n  const summarized = [];\n\n  for (const article of articles) {\n    let summary = await callClaudeForSummary(article, teamName); // existing logic\n    let summaryVersion = article.summary_version ?? 1;\n    let regenerated = false;\n\n    // Step A: Enforce sentence limit\n    summary = enforceSentenceLimit(summary, 3);\n\n    // Step B: Detect speculative language\n    const { flagged, offendingWords } = detectSpeculativeLanguage(summary, article.raw_content);\n\n    if (flagged) {\n      // Regenerate with explicit instruction to avoid speculative language\n      const regenerationPrompt = `Rewrite the following summary without using speculative language (do not use: ${offendingWords.join(', ')}). Keep it factual and within 3 sentences.\\n\\nSummary: ${summary}\\n\\nOriginal Article: ${article.raw_content.slice(0, 3000)}`;\n      summary = await callClaudeRaw(regenerationPrompt);\n      summary = enforceSentenceLimit(summary, 3); // Re-enforce after regeneration\n      summaryVersion += 1;\n      regenerated = true;\n    }\n\n    // Step C: If this is a re-run of an existing article, increment version\n    if (article.summary && article.summary !== summary && !regenerated) {\n      summaryVersion += 1;\n    }\n\n    summarized.push({\n      ...article,\n      summary,\n      summary_version: summaryVersion,\n      speculative_language_flagged: flagged, // optional diagnostic field\n    });\n  }\n\n  return summarized;\n}\n```\n\n---\n\n## Step 5: Persist `summary_version` in Supabase Upsert\n\nWhen upserting articles to the `articles` table, include `summary_version` in the payload:\n\n```typescript\nawait supabase\n  .from('articles')\n  .upsert({\n    ...articleData,\n    summary: article.summary,\n    summary_version: article.summary_version,\n  }, { onConflict: 'url' });\n```\n\nEnsure the upsert does NOT reset `summary_version` to 1 on conflict — use the computed value from the pipeline.\n\n---\n\n## Step 6: Optional — Add `speculative_language_flagged` Diagnostic Column\n\n```sql\nALTER TABLE articles\n  ADD COLUMN IF NOT EXISTS speculative_language_flagged boolean NOT NULL DEFAULT false;\n```\n\nPersist this alongside `summary_version` for observability and debugging.\n\n---\n\n## Considerations\n\n- The sentence splitter must handle edge cases: \"Dr. Smith said...\" should not be split after \"Dr.\" — consider using a lightweight NLP library like `compromise` or `sbd` if the regex approach proves insufficient in testing.\n- The speculative word check is case-insensitive and whole-word only (avoid false positives like \"couldn't\" for \"could\").\n- `summary_version` starts at 1 (not 0) for the first generation.\n- If Claude returns an empty or malformed summary, do not increment `summary_version` — log an error and retain the previous summary.\n- This task integrates with Tasks 56 (generic language check) and 57 (contradiction check); all three post-generation checks should be applied in sequence: length enforcement → speculative language → generic check (Task 56) → contradiction check (Task 57).",
+        "testStrategy": "## 1. Database Migration Verification\n\n- Run `SELECT column_name, data_type, column_default FROM information_schema.columns WHERE table_name = 'articles' AND column_name IN ('summary_version', 'speculative_language_flagged');`\n- Confirm `summary_version` exists as `integer` with default `1`.\n- Confirm `speculative_language_flagged` exists as `boolean` with default `false`.\n\n---\n\n## 2. Unit Tests — `enforceSentenceLimit`\n\n### 2a. Exactly 3 sentences — no truncation\n- Input: `\"The Seahawks won. Geno Smith threw for 300 yards. The defense held firm.\"`\n- Expected output: same string (unchanged).\n\n### 2b. More than 3 sentences — truncate at boundary\n- Input: `\"The Seahawks won. Geno Smith threw for 300 yards. The defense held firm. Fans celebrated loudly.\"`\n- Expected output: `\"The Seahawks won. Geno Smith threw for 300 yards. The defense held firm.\"`\n- Verify the 4th sentence `\"Fans celebrated loudly.\"` is NOT present.\n\n### 2c. Fewer than 3 sentences — no change\n- Input: `\"The Seahawks won on Sunday.\"`\n- Expected output: same string.\n\n### 2d. No sentence-ending punctuation\n- Input: `\"The Seahawks won on Sunday in a close game\"`\n- Expected output: same string (treated as one sentence).\n\n### 2e. Exclamation and question marks as sentence boundaries\n- Input: `\"What a game! The Seahawks won. Can they keep it up? Fans are hopeful.\"`\n- Expected output: `\"What a game! The Seahawks won. Can they keep it up?\"`\n\n---\n\n## 3. Unit Tests — `detectSpeculativeLanguage`\n\n### 3a. Speculative word in summary but NOT in original — flagged\n- Summary: `\"The Seahawks may start a new quarterback next week.\"`\n- Original: `\"The Seahawks are evaluating their roster options.\"`\n- Expected: `{ flagged: true, offendingWords: ['may'] }`\n\n### 3b. Speculative word in summary AND in original — not flagged\n- Summary: `\"The Seahawks could make a trade before the deadline.\"`\n- Original: `\"Sources say the Seahawks could make a trade before the deadline.\"`\n- Expected: `{ flagged: false, offendingWords: [] }`\n\n### 3c. Multiple speculative words, mixed presence\n- Summary: `\"The team might trade Smith and could release Jones.\"`\n- Original: `\"The team might trade Smith.\"` (contains \"might\" but not \"could\")\n- Expected: `{ flagged: true, offendingWords: ['could'] }`\n\n### 3d. No speculative words — not flagged\n- Summary: `\"The Seahawks defeated the 49ers 24-17 on Sunday.\"`\n- Original: `\"The Seahawks defeated the 49ers 24-17.\"`\n- Expected: `{ flagged: false, offendingWords: [] }`\n\n### 3e. Whole-word matching — \"couldn't\" should not trigger \"could\"\n- Summary: `\"The offense couldn't find its rhythm.\"`\n- Original: `\"The offense struggled.\"`\n- Expected: `{ flagged: false, offendingWords: [] }`\n\n---\n\n## 4. Integration Tests — `summary_version` Increment\n\n### 4a. First-time generation\n- Insert a new article with no prior `summary`. Run pipeline.\n- Verify `summary_version = 1` in the `articles` table after upsert.\n\n### 4b. Regeneration due to speculative language\n- Mock Claude to return a summary with `\"may\"` not present in the original article.\n- Run pipeline. Verify `summary_version = 2` after the regeneration cycle.\n\n### 4c. No change on identical summary\n- Run pipeline twice on the same article where Claude returns the same summary both times.\n- Verify `summary_version` does NOT increment on the second run.\n\n### 4d. Version persists across pipeline runs\n- Set `summary_version = 3` manually in the DB for an article.\n- Run pipeline with a new summary for that article.\n- Verify `summary_version = 4` after the run.\n\n---\n\n## 5. End-to-End Pipeline Test\n\n- Run the full `run-content-pipeline` Edge Function for a test team.\n- Query `SELECT url, summary, summary_version, speculative_language_flagged FROM articles WHERE created_at > now() - interval '1 hour';`\n- Verify:\n  - All summaries have ≤ 3 sentences (count sentence-ending punctuation).\n  - Any article with `speculative_language_flagged = true` has a `summary_version >= 2`.\n  - No summary contains \"may\", \"could\", or \"might\" unless those words appear in the corresponding `raw_content`.\n  - All `summary_version` values are ≥ 1 (never 0 or null).",
+        "status": "pending",
+        "dependencies": [
+          "18",
+          "56",
+          "57"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "59",
+        "title": "Implement Satisfaction Feedback Loop with Article Logging, Weekly Admin Reports, and Auto-Flagging",
+        "description": "When a thumbs-down feedback is received, log the articles selected that day along with their composite_scores and selection_reasoning. Generate a weekly admin report comparing lowest vs highest rated newsletters to surface pattern differences, and auto-flag the admin team for review if satisfaction rate drops below 60% for 3 consecutive issues.",
+        "details": "## Overview\n\nThis task extends the existing feedback tracking system (Task 28) to close the loop between subscriber dissatisfaction and editorial improvement. It has three major components:\n\n---\n\n## Component 1: Thumbs-Down Article Logging\n\n### Database Schema\n\nCreate a new table `feedback_article_logs` to capture article context at the time of negative feedback:\n\n```sql\nCREATE TABLE feedback_article_logs (\n  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),\n  newsletter_id uuid REFERENCES newsletters(id) ON DELETE CASCADE,\n  subscriber_id uuid REFERENCES subscribers(id) ON DELETE SET NULL,\n  feedback_received_at timestamptz DEFAULT now(),\n  articles jsonb NOT NULL, -- array of {article_id, title, url, composite_score, selection_reasoning, source_name, rank}\n  team_id uuid REFERENCES teams(id),\n  created_at timestamptz DEFAULT now()\n);\n\nCREATE INDEX idx_feedback_article_logs_newsletter ON feedback_article_logs(newsletter_id);\nCREATE INDEX idx_feedback_article_logs_team ON feedback_article_logs(team_id);\nCREATE INDEX idx_feedback_article_logs_created ON feedback_article_logs(created_at);\n```\n\n### Modify Feedback Edge Function (`supabase/functions/feedback/index.ts`)\n\nExtend the existing thumbs-down handler to snapshot article data:\n\n```typescript\nif (feedback === 'thumbs_down') {\n  // Fetch the newsletter's articles with scoring metadata\n  const { data: newsletter } = await supabase\n    .from('newsletters')\n    .select('id, team_id, article_urls')\n    .eq('id', newsletter_id)\n    .single();\n\n  // Fetch articles with composite_score and selection_reasoning\n  const { data: articles } = await supabase\n    .from('articles')\n    .select('id, title, url, composite_score, selection_reasoning, sources(name)')\n    .in('url', newsletter.article_urls ?? [])\n    .order('composite_score', { ascending: false });\n\n  const articleSnapshot = (articles ?? []).map((a, idx) => ({\n    article_id: a.id,\n    title: a.title,\n    url: a.url,\n    composite_score: a.composite_score,\n    selection_reasoning: a.selection_reasoning,\n    source_name: a.sources?.name ?? null,\n    rank: idx + 1,\n  }));\n\n  await supabase.from('feedback_article_logs').insert({\n    newsletter_id,\n    subscriber_id,\n    team_id: newsletter.team_id,\n    articles: articleSnapshot,\n  });\n}\n```\n\n---\n\n## Component 2: Weekly Admin Report (Lowest vs Highest Rated Newsletters)\n\n### Create a new Edge Function: `supabase/functions/weekly-satisfaction-report/index.ts`\n\n```typescript\nDeno.serve(async () => {\n  const oneWeekAgo = new Date();\n  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);\n\n  // Fetch all sent newsletters from the past week with metrics\n  const { data: newsletters } = await supabase\n    .from('newsletters')\n    .select('id, team_id, sent_at, teams(name), newsletter_metrics(thumbs_up_count, thumbs_down_count, open_count)')\n    .eq('status', 'sent')\n    .gte('sent_at', oneWeekAgo.toISOString());\n\n  // Compute satisfaction rate per newsletter\n  const rated = (newsletters ?? []).map(n => {\n    const metrics = n.newsletter_metrics?.[0] ?? {};\n    const up = metrics.thumbs_up_count ?? 0;\n    const down = metrics.thumbs_down_count ?? 0;\n    const total = up + down;\n    const rate = total > 0 ? (up / total) * 100 : null;\n    return { ...n, thumbs_up: up, thumbs_down: down, total_feedback: total, satisfaction_rate: rate };\n  }).filter(n => n.satisfaction_rate !== null);\n\n  // Sort to find top 3 and bottom 3\n  const sorted = [...rated].sort((a, b) => (b.satisfaction_rate ?? 0) - (a.satisfaction_rate ?? 0));\n  const highest = sorted.slice(0, 3);\n  const lowest = sorted.slice(-3).reverse();\n\n  // Fetch article logs for lowest-rated newsletters\n  const lowestIds = lowest.map(n => n.id);\n  const { data: articleLogs } = await supabase\n    .from('feedback_article_logs')\n    .select('newsletter_id, articles')\n    .in('newsletter_id', lowestIds);\n\n  // Build HTML report comparing patterns\n  const reportHtml = buildWeeklyReportHtml({ highest, lowest, articleLogs, weekStart: oneWeekAgo });\n\n  // Send report via admin notification\n  await notifyAdmin({\n    type: 'weekly_satisfaction_report',\n    data: { subject: `Weekly Satisfaction Report – ${new Date().toDateString()}`, html: reportHtml }\n  });\n\n  // Store report in a new admin_reports table for archival\n  await supabase.from('admin_reports').insert({\n    report_type: 'weekly_satisfaction',\n    generated_at: new Date().toISOString(),\n    html_content: reportHtml,\n    metadata: { highest_ids: highest.map(n => n.id), lowest_ids: lowest.map(n => n.id) }\n  });\n\n  return new Response(JSON.stringify({ success: true }), { status: 200 });\n});\n```\n\n### `buildWeeklyReportHtml` helper\n\nThe HTML report should include:\n- Summary table: newsletter, team, sent date, 👍 count, 👎 count, satisfaction %\n- **Highest Rated** section: top 3 newsletters with their article titles, composite scores, and selection_reasoning\n- **Lowest Rated** section: bottom 3 newsletters with the same article breakdown from `feedback_article_logs`\n- **Pattern Differences** section: highlight articles with composite_score < 0.5 in low-rated newsletters, flag repeated low-scoring sources, and note any selection_reasoning patterns (e.g., \"filler content\", \"low relevance\")\n\n### Schedule the weekly report via pg_cron\n\n```sql\nSELECT cron.schedule(\n  'weekly-satisfaction-report',\n  '0 8 * * 1', -- Every Monday at 8:00 AM\n  $$\n  SELECT net.http_post(\n    url := 'https://[PROJECT-REF].supabase.co/functions/v1/weekly-satisfaction-report',\n    headers := jsonb_build_object(\n      'Content-Type', 'application/json',\n      'Authorization', 'Bearer [SERVICE-ROLE-KEY]'\n    )\n  );\n  $$\n);\n```\n\n### Create `admin_reports` table\n\n```sql\nCREATE TABLE admin_reports (\n  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),\n  report_type text NOT NULL,\n  generated_at timestamptz DEFAULT now(),\n  html_content text,\n  metadata jsonb,\n  created_at timestamptz DEFAULT now()\n);\n```\n\n---\n\n## Component 3: Auto-Flag for Low Satisfaction (< 60% for 3 Consecutive Issues)\n\n### Create a helper function `checkConsecutiveLowSatisfaction` in `_shared/satisfaction-check.ts`\n\n```typescript\nexport async function checkConsecutiveLowSatisfaction(teamId: string): Promise<void> {\n  // Fetch last 3 sent newsletters for this team\n  const { data: recent } = await supabase\n    .from('newsletters')\n    .select('id, sent_at, newsletter_metrics(thumbs_up_count, thumbs_down_count)')\n    .eq('team_id', teamId)\n    .eq('status', 'sent')\n    .order('sent_at', { ascending: false })\n    .limit(3);\n\n  if (!recent || recent.length < 3) return; // Not enough history\n\n  const allBelowThreshold = recent.every(n => {\n    const metrics = n.newsletter_metrics?.[0] ?? {};\n    const up = metrics.thumbs_up_count ?? 0;\n    const down = metrics.thumbs_down_count ?? 0;\n    const total = up + down;\n    if (total === 0) return false; // Skip if no feedback\n    return (up / total) * 100 < 60;\n  });\n\n  if (allBelowThreshold) {\n    // Check if we already flagged this recently (avoid duplicate alerts within 7 days)\n    const { data: recentFlag } = await supabase\n      .from('admin_flags')\n      .select('id, created_at')\n      .eq('team_id', teamId)\n      .eq('flag_type', 'low_satisfaction_streak')\n      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())\n      .limit(1);\n\n    if (recentFlag && recentFlag.length > 0) return; // Already flagged recently\n\n    // Insert flag record\n    await supabase.from('admin_flags').insert({\n      team_id: teamId,\n      flag_type: 'low_satisfaction_streak',\n      details: {\n        newsletter_ids: recent.map(n => n.id),\n        satisfaction_rates: recent.map(n => {\n          const m = n.newsletter_metrics?.[0] ?? {};\n          const up = m.thumbs_up_count ?? 0;\n          const down = m.thumbs_down_count ?? 0;\n          const total = up + down;\n          return total > 0 ? Math.round((up / total) * 100) : null;\n        }),\n      },\n      resolved: false,\n    });\n\n    // Send admin notification\n    await notifyAdmin({\n      type: 'low_satisfaction_streak',\n      data: {\n        teamId,\n        newsletterIds: recent.map(n => n.id),\n        message: `Satisfaction rate has been below 60% for 3 consecutive issues for team ${teamId}. Manual review required.`,\n      }\n    });\n  }\n}\n```\n\n### Create `admin_flags` table\n\n```sql\nCREATE TABLE admin_flags (\n  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),\n  team_id uuid REFERENCES teams(id),\n  flag_type text NOT NULL, -- 'low_satisfaction_streak' | others\n  details jsonb,\n  resolved boolean DEFAULT false,\n  resolved_at timestamptz,\n  resolved_by uuid REFERENCES admin_users(id),\n  created_at timestamptz DEFAULT now()\n);\n\nCREATE INDEX idx_admin_flags_team ON admin_flags(team_id);\nCREATE INDEX idx_admin_flags_type ON admin_flags(flag_type);\nCREATE INDEX idx_admin_flags_resolved ON admin_flags(resolved);\n```\n\n### Extend `notifyAdmin` in `_shared/notify-admin.ts`\n\nAdd two new notification types:\n- `'weekly_satisfaction_report'`: sends the full HTML report email\n- `'low_satisfaction_streak'`: sends an alert email with team name, last 3 newsletter IDs, and their satisfaction rates\n\n### Hook into feedback flow\n\nCall `checkConsecutiveLowSatisfaction(teamId)` at the end of the thumbs-down handler in the feedback Edge Function, after updating `newsletter_metrics`.\n\n---\n\n## Admin UI Integration (Optional Enhancement)\n\n- Surface `admin_flags` with `flag_type = 'low_satisfaction_streak'` and `resolved = false` in the existing admin dashboard (Task 35 Subscriber Insights view) as a banner or alert card.\n- Allow admins to mark flags as resolved with a note.\n- Link to the relevant `admin_reports` record for context.\n",
+        "testStrategy": "## Testing Strategy\n\n### Component 1: Thumbs-Down Article Logging\n\n1. **Happy path**: Submit a thumbs-down feedback for a newsletter that has 5 articles with known `composite_score` and `selection_reasoning` values. Query `feedback_article_logs` and verify:\n   - A row is created with the correct `newsletter_id`, `subscriber_id`, and `team_id`.\n   - The `articles` JSONB array contains all 5 articles with correct `composite_score`, `selection_reasoning`, `source_name`, and `rank` fields.\n2. **Thumbs-up does NOT log**: Submit a thumbs-up feedback and verify no row is inserted into `feedback_article_logs`.\n3. **Missing articles gracefully handled**: Submit thumbs-down for a newsletter with no articles in the DB; verify no crash and either an empty array or no row is inserted.\n4. **Multiple thumbs-down from different subscribers**: Verify separate rows are created per subscriber for the same newsletter.\n\n### Component 2: Weekly Admin Report\n\n1. **Seed data**: Insert 6+ sent newsletters across 2+ teams with varying `thumbs_up_count` and `thumbs_down_count` in `newsletter_metrics`. Insert corresponding `feedback_article_logs` for the lowest-rated ones.\n2. **Trigger the function manually** via HTTP POST to `weekly-satisfaction-report`.\n3. **Verify email sent**: Check admin inbox for the weekly report email with correct subject line.\n4. **Verify report content**:\n   - Top 3 and bottom 3 newsletters are correctly identified by satisfaction rate.\n   - Article breakdown appears for lowest-rated newsletters with composite_score and selection_reasoning.\n   - Pattern differences section highlights articles with composite_score < 0.5.\n5. **Verify `admin_reports` table**: Confirm a row is inserted with `report_type = 'weekly_satisfaction'` and non-empty `html_content`.\n6. **Edge case – fewer than 3 rated newsletters**: Verify the report handles fewer than 3 newsletters gracefully (shows what's available without crashing).\n7. **Cron schedule**: Verify the pg_cron job is registered by querying `SELECT * FROM cron.job WHERE jobname = 'weekly-satisfaction-report'`.\n\n### Component 3: Auto-Flag for Consecutive Low Satisfaction\n\n1. **3 consecutive below 60%**: Insert 3 sent newsletters for a team, each with satisfaction rate ~40% (e.g., 2 up / 3 down). Trigger the feedback function for the most recent one. Verify:\n   - A row is inserted into `admin_flags` with `flag_type = 'low_satisfaction_streak'` and `resolved = false`.\n   - Admin notification email is received with the correct team and newsletter IDs.\n2. **Only 2 consecutive below 60%**: Insert 3 newsletters where the oldest has >60% satisfaction. Verify no flag is created.\n3. **Deduplication**: Trigger the check twice within 7 days for the same team. Verify only one flag row is created (no duplicate alert).\n4. **Insufficient history (< 3 newsletters)**: Verify no flag is created when a team has fewer than 3 sent newsletters.\n5. **No feedback on newsletters**: Verify newsletters with 0 total feedback (thumbs_up + thumbs_down = 0) do not count as \"below 60%\" and do not trigger the flag.\n6. **Flag resolution**: Manually set `resolved = true` on a flag and verify the next check for the same team (still below 60%) creates a new flag after the 7-day cooldown window.\n\n### Integration Test\n\n1. Simulate a full end-to-end flow: send a newsletter → subscriber clicks thumbs-down → verify article log created → repeat for 3 consecutive newsletters → verify admin flag created and email sent → trigger weekly report → verify report includes the flagged team's newsletters in the \"lowest rated\" section.\n",
+        "status": "pending",
+        "dependencies": [
+          "28",
+          "26",
+          "38",
+          "35",
+          "22"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "60",
+        "title": "Implement Seasonal Mode Detection and Dynamic Scoring Weight Adjustment",
+        "description": "Detect the current NFL calendar phase (preseason, regular_season, playoffs, offseason, draft_period) and dynamically adjust article scoring weights, composite thresholds, source filters, and uniqueness scoring to reflect the editorial priorities of each phase.",
+        "details": "## Overview\n\nImplement a `detectSeasonalMode()` utility and a `applySeasonalAdjustments()` function in the `run-content-pipeline` Edge Function (or a shared utility module such as `_shared/seasonal-mode.ts`). These functions will be called early in the pipeline, before scoring and selection, so that all downstream logic operates with phase-appropriate weights.\n\n---\n\n## Step 1: Define NFL Calendar Phases\n\n```typescript\nexport type NFLSeasonPhase =\n  | 'preseason'\n  | 'regular_season'\n  | 'playoffs'\n  | 'super_bowl_week'\n  | 'offseason'\n  | 'draft_period';\n\nexport interface SeasonalConfig {\n  phase: NFLSeasonPhase;\n  scoringWeightOverrides: Partial<ScoringWeights>;\n  compositeThresholdOverride?: number;       // replaces default (e.g. 60)\n  globalSourceFilterTightened: boolean;      // true = stricter source tier filter\n  uniquenessMode: 'default' | 'spread';      // 'spread' forces coverage diversity\n}\n```\n\n---\n\n## Step 2: Implement `detectSeasonalMode()`\n\nUse hardcoded but configurable date ranges (stored as env vars or a config object) to determine the current phase. Fall back to `offseason` if no range matches.\n\n```typescript\nexport function detectSeasonalMode(now: Date = new Date()): NFLSeasonPhase {\n  const month = now.getMonth() + 1; // 1-indexed\n  const day = now.getDate();\n\n  // Super Bowl week: typically first or second week of February\n  // Approximate: Feb 1–14\n  if (month === 2 && day >= 1 && day <= 14) return 'super_bowl_week';\n\n  // Playoffs: mid-January through end of January + early Feb\n  if ((month === 1 && day >= 11) || (month === 2 && day < 1)) return 'playoffs';\n\n  // Draft period: late April through early May (NFL Draft ~last week of April)\n  if ((month === 4 && day >= 20) || (month === 5 && day <= 10)) return 'draft_period';\n\n  // Preseason: August through early September\n  if (month === 8 || (month === 9 && day <= 5)) return 'preseason';\n\n  // Regular season: early September through early January\n  if ((month === 9 && day > 5) || month === 10 || month === 11 || month === 12 || (month === 1 && day <= 10)) return 'regular_season';\n\n  // Offseason: everything else (Feb 15 – late April, May 11 – July 31)\n  return 'offseason';\n}\n```\n\n> **Note:** Allow these date boundaries to be overridden via Supabase environment variables (e.g. `SEASON_PHASE_OVERRIDE`) so admins can manually force a phase during edge cases (e.g., a delayed Super Bowl).\n\n---\n\n## Step 3: Define Phase-Specific Scoring Adjustments\n\n```typescript\nexport function getSeasonalConfig(phase: NFLSeasonPhase): SeasonalConfig {\n  const base: SeasonalConfig = {\n    phase,\n    scoringWeightOverrides: {},\n    compositeThresholdOverride: undefined,\n    globalSourceFilterTightened: false,\n    uniquenessMode: 'default',\n  };\n\n  switch (phase) {\n    case 'offseason':\n      return {\n        ...base,\n        scoringWeightOverrides: {\n          significance: 0.6,   // reduced from default (e.g. 1.0)\n          rumor: 1.5,          // elevated: rumors are more newsworthy in offseason\n        },\n      };\n\n    case 'draft_period':\n      return {\n        ...base,\n        compositeThresholdOverride: 55,  // lower bar: more draft content qualifies\n        scoringWeightOverrides: {\n          transaction: 1.8,    // elevated: trades, signings, picks are top priority\n          rumor: 1.4,          // draft rumors are highly relevant\n        },\n      };\n\n    case 'playoffs':\n      return {\n        ...base,\n        globalSourceFilterTightened: true,  // only tier-1 sources pass\n        scoringWeightOverrides: {\n          game_analysis: 1.6,\n          significance: 1.3,\n        },\n      };\n\n    case 'super_bowl_week':\n      return {\n        ...base,\n        globalSourceFilterTightened: true,\n        uniquenessMode: 'spread',  // force diverse coverage angles\n        scoringWeightOverrides: {\n          game_analysis: 1.8,\n          significance: 1.4,\n        },\n      };\n\n    case 'preseason':\n      return {\n        ...base,\n        scoringWeightOverrides: {\n          transaction: 1.3,\n          injury: 1.2,\n        },\n      };\n\n    case 'regular_season':\n    default:\n      return base; // use all defaults\n  }\n}\n```\n\n---\n\n## Step 4: Apply Adjustments in the Pipeline\n\nIn `run-content-pipeline`, inject seasonal config after article fetching/scoring but before `rankAndSelectArticles`:\n\n```typescript\nconst phase = detectSeasonalMode();\nconst seasonalConfig = getSeasonalConfig(phase);\n\n// 1. Apply composite threshold override\nconst compositeThreshold = seasonalConfig.compositeThresholdOverride ?? DEFAULT_COMPOSITE_THRESHOLD;\n\n// 2. Apply scoring weight overrides to already-scored articles\narticles = articles.map(article => ({\n  ...article,\n  composite_score: recalculateCompositeScore(article, seasonalConfig.scoringWeightOverrides),\n}));\n\n// 3. Apply global source filter tightening\nif (seasonalConfig.globalSourceFilterTightened) {\n  articles = articles.filter(a => a.source_tier === 1); // only tier-1 sources\n}\n\n// 4. Filter by (possibly overridden) composite threshold\narticles = articles.filter(a => a.composite_score >= compositeThreshold);\n\n// 5. Pass uniqueness mode to rankAndSelectArticles\nconst selected = rankAndSelectArticles(articles, { uniquenessMode: seasonalConfig.uniquenessMode });\n```\n\n---\n\n## Step 5: Uniqueness Spread Mode\n\nWhen `uniquenessMode === 'spread'`, modify `rankAndSelectArticles` to penalize articles from the same source or covering the same angle (e.g., same named entity cluster). Implement a diversity bonus:\n\n```typescript\nif (options.uniquenessMode === 'spread') {\n  // After initial sort, re-rank to maximize source and topic diversity\n  // Penalize each subsequent article from the same source by 0.1 * composite_score\n  // Penalize articles sharing >2 named entities with already-selected articles\n}\n```\n\n---\n\n## Step 6: Logging\n\nLog the detected phase and applied overrides to the pipeline run log / Supabase `pipeline_logs` table for observability:\n\n```typescript\nconsole.log(`[seasonal-mode] Detected phase: ${phase}`);\nconsole.log(`[seasonal-mode] Config:`, JSON.stringify(seasonalConfig));\n```\n\n---\n\n## Configuration & Extensibility\n\n- Store `SEASON_PHASE_OVERRIDE` as a Supabase secret to allow manual phase forcing.\n- Store date boundary constants in a `SEASON_DATE_CONFIG` object for easy annual updates.\n- Export `detectSeasonalMode` and `getSeasonalConfig` from `_shared/seasonal-mode.ts` for reuse across Edge Functions.",
+        "testStrategy": "## Unit Tests for `detectSeasonalMode()`\n\n1. **Phase boundary correctness**: Call `detectSeasonalMode()` with mocked dates covering each phase boundary (e.g., Feb 1, Feb 15, Apr 20, May 11, Aug 1, Sep 6, Jan 11) and assert the correct `NFLSeasonPhase` is returned for each.\n2. **Offseason fallback**: Pass a date in mid-March and verify `'offseason'` is returned.\n3. **Super Bowl week priority**: Pass Feb 7 and verify `'super_bowl_week'` is returned (not `'playoffs'`).\n4. **Manual override**: Set `SEASON_PHASE_OVERRIDE=draft_period` env var and verify `detectSeasonalMode()` returns `'draft_period'` regardless of the current date.\n\n## Unit Tests for `getSeasonalConfig()`\n\n5. **Offseason config**: Call `getSeasonalConfig('offseason')` and assert `significance` weight is reduced and `rumor` weight is elevated (≥ 1.5).\n6. **Draft period threshold**: Call `getSeasonalConfig('draft_period')` and assert `compositeThresholdOverride === 55` and `transaction` weight is elevated.\n7. **Playoffs source filter**: Call `getSeasonalConfig('playoffs')` and assert `globalSourceFilterTightened === true`.\n8. **Super Bowl uniqueness**: Call `getSeasonalConfig('super_bowl_week')` and assert `uniquenessMode === 'spread'`.\n9. **Regular season defaults**: Call `getSeasonalConfig('regular_season')` and assert no overrides are applied (all defaults).\n\n## Integration Tests in Pipeline\n\n10. **Offseason rumor elevation**: Seed test articles with `category='rumor'` and `category='general'`. Mock date to offseason. Run pipeline and verify rumor articles score higher than they would under regular season weights.\n11. **Draft period threshold**: Seed articles with `composite_score` between 55–59. Mock date to draft period. Verify these articles pass the threshold filter (they would be excluded in regular season at threshold 60).\n12. **Playoffs source filter**: Seed articles from tier-1 and tier-2 sources. Mock date to playoffs. Verify only tier-1 source articles remain after filtering.\n13. **Super Bowl spread mode**: Seed 6 articles from the same source. Mock date to Super Bowl week. Run `rankAndSelectArticles` with `uniquenessMode='spread'` and verify the selected articles come from diverse sources/topics rather than all from the same source.\n14. **Composite score recalculation**: Verify that `recalculateCompositeScore()` correctly applies weight multipliers and that the resulting scores differ from the pre-seasonal scores in the expected direction.\n\n## Observability\n\n15. **Logging**: Run the pipeline and verify the Supabase logs (or console output) contain the detected phase name and the applied config JSON.\n16. **No regression on regular season**: Run the full pipeline with a regular season date and verify output matches pre-task behavior (no unintended score changes).",
+        "status": "pending",
+        "dependencies": [
+          "19",
+          "51"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "61",
+        "title": "Implement Volume Throttling for Per-Source Article Fetching",
+        "description": "Cap the number of articles fetched per source per day at 3 to prevent single-source dominance, and apply dynamic relevance score cutoff adjustments based on the total number of articles passing the threshold, with admin notifications for low-article scenarios.",
+        "details": "Implement volume throttling logic inside the `run-content-pipeline` Edge Function, injected after articles are scored (composite_score available) but before duplicate suppression and `rankAndSelectArticles` is called. This ensures per-source caps and dynamic cutoff adjustments are applied consistently in the pipeline.\n\n---\n\n### Step 1: Per-Source Daily Cap (Max 3 Articles Per Source)\n\nAfter scoring, group articles by `source_id` and enforce a cap of 3 per source per day:\n\n```typescript\nfunction applyPerSourceCap(articles: Article[], capPerSource: number = 3): Article[] {\n  const sourceCount: Record<string, number> = {};\n  return articles\n    .sort((a, b) => b.composite_score - a.composite_score) // keep highest-scoring per source\n    .filter(article => {\n      const sid = article.source_id;\n      if (!sourceCount[sid]) sourceCount[sid] = 0;\n      if (sourceCount[sid] < capPerSource) {\n        sourceCount[sid]++;\n        return true;\n      }\n      return false;\n    });\n}\n```\n\nCall this after scoring and before threshold filtering.\n\n---\n\n### Step 2: Dynamic Relevance Score Cutoff\n\nApply the base relevance threshold (e.g., 65) first to get a candidate pool. Then evaluate the count and adjust:\n\n```typescript\nconst BASE_THRESHOLD = 65;\nconst STRICT_THRESHOLD = 75;\nconst LENIENT_THRESHOLD = 55;\n\nasync function applyDynamicThreshold(\n  articles: Article[],\n  teamId: string\n): Promise<Article[]> {\n  // Apply per-source cap first\n  const capped = applyPerSourceCap(articles);\n\n  // Apply base threshold\n  let passing = capped.filter(a => a.composite_score >= BASE_THRESHOLD);\n\n  if (passing.length > 10) {\n    // Too many articles: apply stricter cutoff\n    passing = capped.filter(a => a.composite_score >= STRICT_THRESHOLD);\n  } else if (passing.length < 3) {\n    // Too few articles: apply lenient cutoff and notify admin\n    passing = capped.filter(a => a.composite_score >= LENIENT_THRESHOLD);\n    await notifyAdmin({\n      type: 'low_article_count',\n      data: {\n        team_id: teamId,\n        count_at_base_threshold: passing.length,\n        lenient_threshold: LENIENT_THRESHOLD,\n        message: `Fewer than 3 articles passed the base threshold (${BASE_THRESHOLD}) for team ${teamId}. Lowered cutoff to ${LENIENT_THRESHOLD}.`\n      }\n    });\n  }\n\n  return passing;\n}\n```\n\n---\n\n### Step 3: Extend Admin Notification Types\n\nUpdate `_shared/notify-admin.ts` to handle the new `low_article_count` notification type:\n\n```typescript\ncase 'low_article_count':\n  subject = `Low Article Count Alert: Team ${notification.data.team_id}`;\n  html = `\n    <h2>Low Article Count Warning</h2>\n    <p>Fewer than 3 articles passed the base relevance threshold for team <strong>${notification.data.team_id}</strong>.</p>\n    <p>The cutoff has been automatically lowered to <strong>${notification.data.lenient_threshold}</strong>.</p>\n    <p>Please review source health and article volume for this team.</p>\n  `;\n  break;\n```\n\n---\n\n### Step 4: Pipeline Integration Order\n\nEnsure the pipeline executes in this order:\n1. Fetch articles from sources\n2. Score articles (composite_score assigned)\n3. **Apply per-source cap (max 3/source/day)** ← new\n4. **Apply dynamic threshold cutoff** ← new\n5. Duplicate suppression (Task 51)\n6. `rankAndSelectArticles` (Task 19)\n\n---\n\n### Step 5: Configuration Constants\n\nStore thresholds as environment variables or a config object for easy tuning:\n\n```typescript\nconst VOLUME_CONFIG = {\n  perSourceDailyCap: 3,\n  baseThreshold: 65,\n  strictThreshold: 75,       // applied when > 10 articles pass base\n  lenientThreshold: 55,      // applied when < 3 articles pass base\n  strictTriggerCount: 10,\n  lenientTriggerCount: 3,\n};\n```\n\n---\n\n### Considerations\n- The per-source cap sorts by `composite_score` descending before filtering, ensuring the best articles from each source are retained.\n- The dynamic threshold is re-evaluated after the per-source cap is applied, so the count reflects the capped pool.\n- Admin notification for low article count should be non-blocking (fire-and-forget with try/catch).\n- Log all threshold decisions to a pipeline run log or `validation_logs` table for auditability.",
+        "testStrategy": "### 1. Per-Source Daily Cap (Max 3 Articles Per Source)\n\n- Create a mock article set with 6 articles from Source A (varying composite_scores) and 2 from Source B.\n- Run `applyPerSourceCap()` and verify only the top 3 articles from Source A are retained (by composite_score), and both from Source B pass through.\n- Verify total output is 5 articles (3 from A + 2 from B).\n- Confirm articles are sorted by composite_score within each source group.\n\n### 2. Strict Threshold (> 10 Articles Pass Base)\n\n- Create a mock capped article set where 12 articles have composite_score ≥ 65.\n- Run `applyDynamicThreshold()` and verify the returned list only contains articles with composite_score ≥ 75.\n- Verify no admin notification is sent in this scenario.\n\n### 3. Lenient Threshold (< 3 Articles Pass Base)\n\n- Create a mock capped article set where only 2 articles have composite_score ≥ 65, but 5 articles have composite_score ≥ 55.\n- Run `applyDynamicThreshold()` and verify the returned list contains all articles with composite_score ≥ 55 (5 articles).\n- Verify admin notification is triggered with the correct `low_article_count` type, team_id, and threshold values.\n- Verify the notification does not block pipeline execution (use try/catch and confirm pipeline continues even if notify fails).\n\n### 4. Normal Range (3–10 Articles Pass Base)\n\n- Create a mock capped article set where 6 articles have composite_score ≥ 65.\n- Run `applyDynamicThreshold()` and verify the returned list contains exactly those 6 articles (base threshold applied, no adjustment).\n- Verify no admin notification is sent.\n\n### 5. Pipeline Integration Order\n\n- Run the full `run-content-pipeline` for a test team and add logging to confirm the execution order: scoring → per-source cap → dynamic threshold → duplicate suppression → rankAndSelectArticles.\n- Verify no article from a single source appears more than 3 times in the pre-selection candidate pool.\n\n### 6. Admin Notification Content\n\n- Trigger the low-article-count scenario and verify the admin receives an email with the correct subject (`Low Article Count Alert: Team <id>`), team ID, base threshold, and lenient threshold values in the body.\n\n### 7. Edge Cases\n\n- Test with 0 articles after scoring: verify pipeline handles gracefully without errors and admin is notified.\n- Test with exactly 3 articles passing base threshold: verify lenient threshold is NOT applied (boundary condition).\n- Test with exactly 10 articles passing base threshold: verify strict threshold is NOT applied (boundary condition).",
+        "status": "pending",
+        "dependencies": [
+          "19",
+          "38",
+          "51"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "62",
+        "title": "Implement Stat of the Day Grounding with Source Article Traceability",
+        "description": "Refactor the Stat of the Day generation to derive statistics exclusively from fetched articles rather than freely generating them, storing a reference to the source article and validation notes from any web search used to verify the stat. If no verifiable stat can be found in today's articles, the Stat of the Day section is omitted entirely from the newsletter.",
+        "details": "## Overview\n\nRefactor the `generateStatOfTheDay` function (introduced in Task 20) inside the `run-content-pipeline` Edge Function to enforce strict grounding: every stat must be extracted from a specific fetched article, not hallucinated or freely generated by Claude.\n\n---\n\n## Step 1: Database Schema Changes\n\nAdd two new columns to the `newsletters` table (or a dedicated `stat_of_the_day` table if one exists):\n\n```sql\nALTER TABLE newsletters\n  ADD COLUMN IF NOT EXISTS stat_source_article_id uuid REFERENCES articles(id),\n  ADD COLUMN IF NOT EXISTS stat_validation_notes text;\n```\n\n- `stat_source_article_id`: Foreign key to the `articles` table row from which the stat was extracted.\n- `stat_validation_notes`: Free-text field storing the result of any web-search verification step (search query used, result snippet, confidence assessment, or a note that no verification was needed/possible).\n\n---\n\n## Step 2: Refactor `generateStatOfTheDay`\n\nReplace the existing implementation with a grounded version:\n\n```typescript\ninterface StatOfTheDay {\n  stat: string;\n  context: string;\n  source_article_id: string;\n  validation_notes: string;\n}\n\nasync function generateStatOfTheDay(\n  teamName: string,\n  articles: Article[]  // full article objects with id, title, content/summary\n): Promise<StatOfTheDay | null> {\n  if (!articles || articles.length === 0) return null;\n\n  // Build a prompt that instructs Claude to extract a stat from the provided articles only\n  const articlesPayload = articles.map((a, i) =>\n    `[Article ${i + 1}] ID: ${a.id}\\nTitle: ${a.title}\\nContent: ${a.content ?? a.summary ?? ''}`\n  ).join('\\n\\n');\n\n  const prompt = `You are a sports newsletter editor. Your task is to find ONE specific, verifiable statistic about the ${teamName} NFL team that appears explicitly in the articles below. \n\nRULES:\n- The stat MUST be directly stated or clearly implied by the article text. Do NOT invent or infer statistics not present in the articles.\n- Return the Article ID of the source article.\n- If no suitable verifiable statistic exists in any article, respond with JSON: { \"found\": false }\n\nArticles:\n${articlesPayload}\n\nRespond ONLY with valid JSON in one of these two formats:\n{ \"found\": true, \"stat\": \"<the statistic sentence>\", \"context\": \"<1-2 sentence explanation>\", \"source_article_id\": \"<article UUID>\" }\n{ \"found\": false }`;\n\n  const response = await anthropic.messages.create({\n    model: 'claude-opus-4-5',\n    max_tokens: 512,\n    messages: [{ role: 'user', content: prompt }],\n  });\n\n  let parsed: any;\n  try {\n    parsed = JSON.parse(response.content[0].text.trim());\n  } catch {\n    return null;\n  }\n\n  if (!parsed.found) return null;\n\n  // Validate that the returned source_article_id actually exists in our article set\n  const sourceArticle = articles.find(a => a.id === parsed.source_article_id);\n  if (!sourceArticle) return null;\n\n  // Step 3: Optional web-search verification\n  const validationNotes = await verifyStatWithWebSearch(parsed.stat, teamName);\n\n  return {\n    stat: parsed.stat,\n    context: parsed.context,\n    source_article_id: parsed.source_article_id,\n    validation_notes: validationNotes,\n  };\n}\n```\n\n---\n\n## Step 3: Web Search Verification (Optional, Stat-Named Only)\n\nOnly perform a web search if the stat contains a named/specific numeric claim (e.g., \"Patrick Mahomes has 47 career touchdown passes in playoff games\"):\n\n```typescript\nasync function verifyStatWithWebSearch(stat: string, teamName: string): Promise<string> {\n  // Heuristic: only search if stat contains digits (specific numeric claim)\n  if (!/\\d/.test(stat)) {\n    return 'No web verification performed (no specific numeric claim detected).';\n  }\n\n  try {\n    // Use your existing web search utility (e.g., Brave Search API or similar)\n    const searchQuery = `${teamName} ${stat}`;\n    const searchResult = await performWebSearch(searchQuery); // existing helper\n\n    if (!searchResult || !searchResult.snippet) {\n      return `Web search performed for: \"${searchQuery}\". No corroborating result found.`;\n    }\n\n    return `Web search query: \"${searchQuery}\". Result: \"${searchResult.snippet}\" (Source: ${searchResult.url}).`;\n  } catch (err) {\n    return `Web search attempted but failed: ${(err as Error).message}`;\n  }\n}\n```\n\n---\n\n## Step 4: Integrate into Newsletter Assembly\n\nIn the `assembleNewsletter` function (Task 26), update the stat generation call and persist results:\n\n```typescript\nconst statResult = await generateStatOfTheDay(team.name, todaysArticles);\n\n// Build newsletter content\nlet statSection = ''; // default: omit section\nif (statResult) {\n  statSection = renderStatSection(statResult.stat, statResult.context);\n}\n\n// Persist to newsletters table\nconst newsletterInsert = {\n  team_id: teamId,\n  html_content: assembleHtml({ ..., statSection }),\n  stat_source_article_id: statResult?.source_article_id ?? null,\n  stat_validation_notes: statResult?.validation_notes ?? null,\n  // ...other fields\n};\n```\n\n---\n\n## Step 5: Omit Section When No Stat Found\n\nIn the HTML template renderer, check for an empty `statSection` string and skip rendering the \"Stat of the Day\" block entirely — do not render a placeholder or empty section.\n\n```typescript\nfunction assembleHtml({ leadStory, quickHits, injuries, statSection }: NewsletterParts): string {\n  return `\n    ...\n    ${statSection ? `<section class=\"stat-of-the-day\">${statSection}</section>` : ''}\n    ...\n  `;\n}\n```\n\n---\n\n## Considerations\n\n- Pass full article objects (including `content` or `summary` fields) to `generateStatOfTheDay`, not just titles, so Claude has enough text to extract a real stat.\n- Ensure `stat_source_article_id` is validated against the actual article IDs in the current pipeline run to prevent hallucinated UUIDs.\n- The web search is rate-limited and should only fire for numeric stats to minimize API costs.\n- Log a warning (and optionally notify admin via Task 38's notification system) when no stat is found so the omission is observable.\n",
+        "testStrategy": "## 1. Stat Grounding — Stat Extracted from Article\n\n- Provide a mock set of articles where one article contains a clear numeric statistic (e.g., \"The Seahawks have won 8 consecutive home games\").\n- Run `generateStatOfTheDay` and verify:\n  - The returned `stat` text matches or paraphrases content from the provided articles.\n  - The returned `source_article_id` matches the UUID of the article containing the stat.\n  - The stat is NOT a freely invented claim absent from the article corpus.\n\n## 2. Stat Grounding — No Stat Available\n\n- Provide a mock set of articles containing only general narrative text with no specific statistics.\n- Run `generateStatOfTheDay` and verify it returns `null`.\n- Run the full newsletter assembly and verify the assembled HTML does **not** contain a \"Stat of the Day\" section (no empty `<section>` tag, no placeholder text).\n\n## 3. `stat_source_article_id` Persistence\n\n- Run the full pipeline for a test team with articles that contain a verifiable stat.\n- Query the `newsletters` table after assembly and verify:\n  - `stat_source_article_id` is non-null and references a valid row in the `articles` table.\n  - `stat_validation_notes` is non-null and contains a meaningful string.\n\n## 4. `stat_source_article_id` Null When No Stat\n\n- Run the pipeline with articles containing no stats.\n- Query the `newsletters` table and verify `stat_source_article_id IS NULL` and `stat_validation_notes IS NULL`.\n\n## 5. Web Search Verification — Numeric Stat\n\n- Mock `performWebSearch` to return a known snippet.\n- Call `verifyStatWithWebSearch` with a stat containing digits.\n- Verify `validation_notes` contains the search query and the mocked snippet URL.\n\n## 6. Web Search Verification — Non-Numeric Stat\n\n- Call `verifyStatWithWebSearch` with a stat containing no digits (e.g., \"The Seahawks have the best offensive line in the NFC West\").\n- Verify `validation_notes` contains the \"No web verification performed\" message and no web search API call was made.\n\n## 7. Hallucinated Article ID Rejection\n\n- Modify the Claude mock response to return a `source_article_id` that does not exist in the provided article list.\n- Verify `generateStatOfTheDay` returns `null` (rejects the hallucinated ID).\n\n## 8. Database Schema Validation\n\n- Run the migration SQL and verify the `newsletters` table has `stat_source_article_id` (uuid, nullable, FK to articles) and `stat_validation_notes` (text, nullable) columns.\n- Attempt to insert a `stat_source_article_id` referencing a non-existent article UUID and verify the FK constraint rejects it.\n\n## 9. Admin Notification on No Stat Found\n\n- Configure the pipeline with articles containing no stats.\n- Verify an admin warning log entry is created (or admin notification sent via Task 38's system) indicating the Stat of the Day section was omitted.\n\n## 10. End-to-End Newsletter Rendering\n\n- Run the full pipeline for a team with stat-containing articles and verify the rendered HTML email includes the Stat of the Day section with correct content.\n- Run for a team with no stat-containing articles and verify the section is completely absent from the HTML output.\n",
+        "status": "pending",
+        "dependencies": [
+          "20",
+          "26",
+          "38",
+          "19"
+        ],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-03-12T21:03:46.890Z",
-      "taskCount": 45,
-      "completedCount": 13,
+      "lastModified": "2026-03-20T18:34:24.394Z",
+      "taskCount": 62,
+      "completedCount": 39,
       "tags": [
         "master"
       ]
