@@ -31,69 +31,62 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="admin-root">
+    <div className="admin-root min-h-screen flex flex-col">
       <div className="admin-glow" aria-hidden />
-      <div className="admin-shell admin-shell-narrow">
-        <nav className="landing-nav fade-up" style={{ animationDelay: '0ms' }}>
+      <div className="admin-shell admin-shell-narrow flex flex-col flex-1 min-h-0">
+        <nav className="landing-nav fade-up shrink-0" style={{ animationDelay: '0ms' }}>
           <Link to="/" className="landing-logo hover:opacity-80 transition-opacity">
             NFL WIRE
           </Link>
           <p className="landing-tag">Admin</p>
         </nav>
 
-        <header className="fade-up" style={{ animationDelay: '80ms' }}>
-          <p className="hero-eyebrow">
-            <span className="eyebrow-dot" />
-            OPERATIONS
-          </p>
-          <h1 className="admin-login-title">Sign in</h1>
-          <p className="admin-login-lede">
-            Use your admin email to receive a secure magic link. You’ll be redirected to the dashboard after
-            you open the link.
-          </p>
-        </header>
+        <div className="admin-login-stack fade-up" style={{ animationDelay: '80ms' }}>
+          <header className="admin-login-header-block mx-auto w-full">
+            <p className="hero-eyebrow">
+              <span className="eyebrow-dot" />
+              OPERATIONS
+            </p>
+            <h1 className="admin-login-title">Sign in</h1>
+            <p className="admin-login-lede">
+              Use your admin email to receive a secure magic link. You’ll be redirected to the dashboard after
+              you open the link.
+            </p>
+          </header>
 
-        <div className="fade-up" style={{ animationDelay: '140ms' }}>
-          <form className="admin-panel" onSubmit={onSubmit}>
-            <div className="signup-head">
-              <div>
-                <h2 className="signup-title">
-                  Magic link <span>login</span>
-                </h2>
-                <p className="signup-description">No password — we email you a one-time link.</p>
-              </div>
-            </div>
-            <div className="space-y-4">
+          <form className="admin-login-card" onSubmit={onSubmit}>
+            <div className="admin-login-form">
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 autoComplete="email"
-                className="admin-form-input"
+                className="admin-login-input"
+                aria-label="Admin email"
               />
               {error && (
-                <p className="form-help error" role="alert">
+                <p className="form-help error m-0" role="alert">
                   {error}
                 </p>
               )}
               {sent && (
-                <p className="form-help text-[var(--ink-muted)]">
+                <p className="form-help text-[var(--ink-muted)] m-0">
                   Check your inbox for the login link. It may take a minute to arrive.
                 </p>
               )}
-              <button type="submit" disabled={submitting} className="admin-btn-primary w-full sm:w-auto">
+              <button type="submit" disabled={submitting} className="admin-login-submit">
                 {submitting ? 'Sending…' : 'Send magic link'}
               </button>
             </div>
           </form>
-        </div>
 
-        <p className="mt-8 text-center text-xs text-[var(--ink-faint)] fade-up" style={{ animationDelay: '200ms' }}>
-          <Link to="/" className="text-[var(--ink-muted)] hover:text-[var(--ink-mid)] underline-offset-4 hover:underline">
-            ← Back to subscriber site
-          </Link>
-        </p>
+          <p className="admin-login-back-wrap w-full max-w-[420px] mx-auto">
+            <Link to="/" className="admin-login-back">
+              ← Back to subscriber site
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
