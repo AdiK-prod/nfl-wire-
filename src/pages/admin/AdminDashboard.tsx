@@ -47,54 +47,76 @@ export default function AdminDashboard() {
     [],
   );
 
+  const topStats = useMemo(
+    () =>
+      [
+        {
+          label: 'Pending sources',
+          value: stats.pendingSources,
+          emptyHint: 'No pending sources right now.',
+        },
+        { label: 'Flagged sources', value: stats.flaggedSources, emptyHint: 'Nothing flagged.' },
+        {
+          label: 'Active subscribers',
+          value: stats.activeSubscribers,
+          emptyHint: 'No subscribers yet. Share your landing page to get started.',
+        },
+        {
+          label: 'Newsletters sent',
+          value: stats.newslettersSent,
+          emptyHint: 'No sends recorded yet.',
+        },
+      ] as const,
+    [stats],
+  );
+
   return (
     <div className="admin-root">
       <div className="admin-glow" aria-hidden />
-      <div className="admin-shell">
-        <header className="admin-nav fade-up" style={{ animationDelay: '0ms' }}>
-          <div>
-            <Link to="/" className="landing-logo block hover:opacity-80 transition-opacity">
+      <div className="admin-shell admin-shell--dash">
+        <header className="admin-dash-nav fade-up" style={{ animationDelay: '0ms' }}>
+          <div className="admin-dash-brand">
+            <Link to="/" className="admin-dash-logo">
               NFL WIRE
             </Link>
-            <p className="mt-1 text-xs tracking-[0.2em] uppercase text-[var(--ink-muted)]">Operations</p>
+            <p className="admin-dash-subline">Operations</p>
           </div>
-          <div className="admin-nav-actions">
+          <div className="admin-dash-actions">
             <span className="admin-user-email hidden sm:inline" title={user?.email ?? ''}>
               {user?.email}
             </span>
-            <button type="button" className="admin-btn-secondary" onClick={() => signOut()}>
+            <button type="button" className="admin-dash-btn" onClick={() => signOut()}>
               Sign out
             </button>
-            <Link to="/" className="admin-btn-secondary">
+            <Link to="/" className="admin-dash-btn">
               Subscriber site
             </Link>
           </div>
         </header>
 
         <section className="fade-up" style={{ animationDelay: '60ms' }}>
-          <p className="hero-eyebrow mb-3">
+          <p className="admin-dash-eyebrow">
             <span className="eyebrow-dot" />
             AT A GLANCE
           </p>
-          <div className="admin-stat-grid">
-            <StatCard label="Pending sources" value={stats.pendingSources} />
-            <StatCard label="Flagged sources" value={stats.flaggedSources} />
-            <StatCard label="Active subscribers" value={stats.activeSubscribers} />
-            <StatCard label="Newsletters sent" value={stats.newslettersSent} />
+          <div className="admin-dash-stat-grid">
+            {topStats.map((s) => (
+              <DashStatCard key={s.label} label={s.label} value={s.value} emptyHint={s.emptyHint} />
+            ))}
           </div>
         </section>
 
         <nav
-          className="admin-nav-tabs mt-8 fade-up"
+          className="admin-dash-tabs-wrap fade-up"
           style={{ animationDelay: '100ms' }}
           aria-label="Admin sections"
         >
-          <div className="tab-switcher">
+          <div className="admin-dash-tabs">
             {nav.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
-                className={({ isActive }) => `tab-button ${isActive ? 'active' : ''}`}
+                className={({ isActive }) => `admin-dash-tab${isActive ? ' active' : ''}`}
               >
                 {item.label}
               </NavLink>
@@ -102,7 +124,7 @@ export default function AdminDashboard() {
           </div>
         </nav>
 
-        <main className="admin-main admin-panel mt-5 fade-up" style={{ animationDelay: '140ms' }}>
+        <main className="admin-dash-outlet fade-up" style={{ animationDelay: '140ms' }}>
           <Outlet />
         </main>
       </div>
@@ -110,11 +132,21 @@ export default function AdminDashboard() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function DashStatCard({
+  label,
+  value,
+  emptyHint,
+}: {
+  label: string;
+  value: number;
+  emptyHint?: string;
+}) {
+  const showEmpty = value === 0 && emptyHint;
   return (
-    <div className="admin-stat-card">
-      <p className="admin-stat-label">{label}</p>
-      <p className="admin-stat-value">{value}</p>
+    <div className="admin-dash-stat-card">
+      <p className="admin-dash-stat-label">{label}</p>
+      <p className="admin-dash-stat-value">{value}</p>
+      {showEmpty ? <p className="admin-dash-stat-empty">{emptyHint}</p> : null}
     </div>
   );
 }

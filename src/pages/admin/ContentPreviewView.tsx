@@ -23,21 +23,25 @@ export default function ContentPreviewView() {
 
   return (
     <div>
-      <h2 className="admin-section-title">Content preview</h2>
-      <p className="admin-section-lede">Recent newsletter drafts and sent issues.</p>
-      <div className="space-y-3">
-        {rows.map((row) => (
-          <article key={row.id} className="admin-list-card">
-            <h3 className="admin-list-card-title">{row.subject_line}</h3>
-            <p className="admin-list-card-meta">
-              {(row.teams && `${row.teams.city} ${row.teams.name}`) || 'Unknown team'} ·{' '}
-              <span className="hero-chip inline align-middle">{row.status}</span>
-              {' · '}
-              {new Date(row.created_at).toLocaleString()}
-            </p>
-          </article>
-        ))}
-      </div>
+      <h2 className="admin-dash-page-title">Content preview</h2>
+      <p className="admin-dash-page-lede">Recent newsletter drafts and sent issues.</p>
+      {rows.length === 0 ? (
+        <p className="admin-dash-section-empty m-0">No newsletters yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((row) => (
+            <article key={row.id} className="admin-list-card">
+              <h3 className="admin-list-card-title">{row.subject_line}</h3>
+              <p className="admin-list-card-meta">
+                {(row.teams && `${row.teams.city} ${row.teams.name}`) || 'Unknown team'} ·{' '}
+                <span className="hero-chip inline align-middle">{row.status}</span>
+                {' · '}
+                {new Date(row.created_at).toLocaleString()}
+              </p>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

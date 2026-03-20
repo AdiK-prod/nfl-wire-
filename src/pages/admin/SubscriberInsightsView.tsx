@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 
 type TeamSubs = {
@@ -6,6 +6,10 @@ type TeamSubs = {
   count: number;
   teams: { city: string; name: string } | null;
 };
+
+type MetricDef =
+  | { label: string; value: number; emptyHint?: string }
+  | { label: string; value: null };
 
 export default function SubscriberInsightsView() {
   const [totalActive, setTotalActive] = useState(0);
@@ -31,34 +35,76 @@ export default function SubscriberInsightsView() {
     });
   }, []);
 
+  const metrics = useMemo<MetricDef[]>(
+    () => [
+      {
+        label: 'Active subscribers',
+        value: totalActive,
+        emptyHint: 'No subscribers yet. Share your landing page to get started.',
+      },
+      {
+        label: 'Opens (24h)',
+        value: opened24h,
+        emptyHint: 'No opens recorded in the last 24 hours.',
+      },
+      { label: 'Day 1 Open Rate', value: null },
+      { label: '5-of-7 Weekly Engagement Rate', value: null },
+      { label: '👍 Satisfaction Rate', value: null },
+      { label: 'Churned This Week', value: null },
+    ],
+    [totalActive, opened24h],
+  );
+
   return (
     <div>
-      <h2 className="admin-section-title">Subscriber insights</h2>
-      <p className="admin-section-lede">Active subscriptions and recent opens.</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-        <Stat label="Active subscribers" value={totalActive} />
-        <Stat label="Opens (24h)" value={opened24h} />
-      </div>
-      <p className="picker-label mb-3">By team</p>
-      <div className="space-y-3">
-        {byTeam.map((row) => (
-          <div key={row.team_id} className="admin-list-card flex items-center justify-between gap-4">
-            <span className="text-sm font-medium text-[var(--ink)]">
-              {(row.teams && `${row.teams.city} ${row.teams.name}`) || row.team_id}
-            </span>
-            <span className="admin-stat-value text-xl tabular-nums">{row.count}</span>
-          </div>
+      <h2 className="admin-dash-page-title">Subscriber insights</h2>
+      <p className="admin-dash-page-lede">Active subscriptions, engagement targets, and opens.</p>
+
+      <div className="admin-dash-metric-grid">
+        {metrics.map((m) => (
+          <InsightMetricCard key={m.label} metric={m} />
         ))}
+      </div>
+
+      <div className="admin-dash-by-team">
+        <hr className="admin-dash-by-team-rule" aria-hidden />
+        <p className="admin-dash-by-team-label">By team</p>
+        {byTeam.length === 0 ? (
+          <p className="admin-dash-by-team-empty">No subscriber data by team yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {byTeam.map((row) => (
+              <div key={row.team_id} className="admin-list-card flex items-center justify-between gap-4">
+                <span className="text-sm font-medium text-[var(--ink)]">
+                  {(row.teams && `${row.teams.city} ${row.teams.name}`) || row.team_id}
+                </span>
+                <span className="admin-dash-metric-value text-xl tabular-nums">{row.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function InsightMetricCard({ metric }: { metric: MetricDef }) {
+  if (metric.value === null) {
+    return (
+      <div className="admin-dash-metric-card">
+        <p className="admin-dash-metric-label">{metric.label}</p>
+        <p className="admin-dash-metric-value">—</p>
+      </div>
+    );
+  }
+
+  const showEmpty = metric.value === 0 && metric.emptyHint;
+
   return (
-    <div className="admin-stat-card">
-      <p className="admin-stat-label">{label}</p>
-      <p className="admin-stat-value">{value}</p>
+    <div className="admin-dash-metric-card">
+      <p className="admin-dash-metric-label">{metric.label}</p>
+      <p className="admin-dash-metric-value">{metric.value}</p>
+      {showEmpty ? <p className="admin-dash-metric-empty">{metric.emptyHint}</p> : null}
     </div>
   );
 }

@@ -17,32 +17,36 @@ export default function SourceQueueView() {
 
   return (
     <div>
-      <h2 className="admin-section-title">Source queue</h2>
-      <p className="admin-section-lede">Review pending, flagged, and approved sources.</p>
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>URL</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sources.map((source) => (
-              <tr key={source.id}>
-                <td className="font-medium text-[var(--ink)]">{source.name}</td>
-                <td>{source.type}</td>
-                <td>
-                  <span className="hero-chip inline-block">{source.status}</span>
-                </td>
-                <td className="truncate max-w-[min(360px,40vw)]">{source.url}</td>
+      <h2 className="admin-dash-page-title">Source queue</h2>
+      <p className="admin-dash-page-lede">Review pending, flagged, and approved sources.</p>
+      {sources.length === 0 ? (
+        <p className="admin-dash-section-empty m-0">No sources to show yet.</p>
+      ) : (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>URL</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {sources.map((source) => (
+                <tr key={source.id}>
+                  <td className="font-medium text-[var(--ink)]">{source.name}</td>
+                  <td>{source.type}</td>
+                  <td>
+                    <span className="hero-chip inline-block">{source.status}</span>
+                  </td>
+                  <td className="truncate max-w-[min(360px,40vw)]">{source.url}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

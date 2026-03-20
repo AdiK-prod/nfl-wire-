@@ -24,20 +24,24 @@ export default function ValidationLogsView() {
 
   return (
     <div>
-      <h2 className="admin-section-title">Validation logs</h2>
-      <p className="admin-section-lede">Recent article validation outcomes and categories.</p>
-      <div className="space-y-3">
-        {rows.map((row) => (
-          <article key={row.id} className="admin-list-card">
-            <h3 className="admin-list-card-title">{row.title}</h3>
-            <p className="admin-list-card-meta">
-              {(row.teams && `${row.teams.city} ${row.teams.name}`) || 'Unknown team'} ·{' '}
-              {row.category ?? 'uncategorized'} · {row.relevance_confirmed ? 'confirmed' : 'not confirmed'} ·{' '}
-              {new Date(row.published_at).toLocaleString()}
-            </p>
-          </article>
-        ))}
-      </div>
+      <h2 className="admin-dash-page-title">Validation logs</h2>
+      <p className="admin-dash-page-lede">Recent article validation outcomes and categories.</p>
+      {rows.length === 0 ? (
+        <p className="admin-dash-section-empty m-0">No articles logged yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((row) => (
+            <article key={row.id} className="admin-list-card">
+              <h3 className="admin-list-card-title">{row.title}</h3>
+              <p className="admin-list-card-meta">
+                {(row.teams && `${row.teams.city} ${row.teams.name}`) || 'Unknown team'} ·{' '}
+                {row.category ?? 'uncategorized'} · {row.relevance_confirmed ? 'confirmed' : 'not confirmed'} ·{' '}
+                {new Date(row.published_at).toLocaleString()}
+              </p>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

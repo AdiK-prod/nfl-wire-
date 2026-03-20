@@ -666,7 +666,316 @@ body {
 }
 
 .admin-main {
-  min-height: 280px;
+  min-height: 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Admin dashboard — layout, nav, stats, tabs, outlet                         */
+/* -------------------------------------------------------------------------- */
+
+.admin-shell--dash {
+  padding-bottom: 32px;
+}
+
+.admin-dash-nav {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.admin-dash-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-dash-logo {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.admin-dash-logo:hover {
+  opacity: 0.85;
+}
+
+.admin-dash-subline {
+  margin: 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.admin-dash-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.admin-dash-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-mid);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.admin-dash-btn:hover {
+  border-color: var(--border-hover);
+  background: var(--bg);
+}
+
+.admin-dash-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.admin-dash-eyebrow .eyebrow-dot {
+  background: var(--ink-mid);
+}
+
+.admin-dash-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .admin-dash-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.admin-dash-stat-card {
+  box-sizing: border-box;
+  height: auto;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-dash-stat-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.05);
+}
+
+.admin-dash-stat-label {
+  margin: 0 0 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.admin-dash-stat-value {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.admin-dash-stat-empty {
+  margin: 6px 0 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
+.admin-dash-tabs-wrap {
+  margin: 24px 0 0;
+}
+
+.admin-dash-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+}
+
+.admin-dash-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.admin-dash-tab:hover {
+  background: var(--bg);
+  color: var(--ink-mid);
+}
+
+.admin-dash-tab.active {
+  background: var(--ink);
+  color: #f7f5f2;
+}
+
+.admin-dash-tab.active:hover {
+  background: var(--ink);
+  color: #f7f5f2;
+}
+
+.admin-dash-outlet {
+  margin-top: 12px;
+  padding: 28px 32px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+}
+
+.admin-dash-page-title {
+  margin: 0 0 4px;
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--ink);
+}
+
+.admin-dash-page-lede {
+  margin: 0 0 24px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.admin-dash-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-dash-metric-card {
+  box-sizing: border-box;
+  padding: 16px 20px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+}
+
+.admin-dash-metric-label {
+  margin: 0 0 6px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.admin-dash-metric-value {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.admin-dash-metric-empty {
+  margin: 6px 0 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
+.admin-dash-by-team {
+  margin-top: 24px;
+}
+
+.admin-dash-by-team-rule {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 0 0 16px;
+}
+
+.admin-dash-by-team-label {
+  margin: 0 0 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.admin-dash-by-team-empty {
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.admin-dash-section-empty {
+  margin: 16px 0 0;
+  padding: 20px;
+  text-align: center;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--ink-muted);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--bg);
 }
 
 .admin-form-input {
