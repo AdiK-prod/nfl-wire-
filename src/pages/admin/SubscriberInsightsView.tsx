@@ -33,15 +33,20 @@ export default function SubscriberInsightsView() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-[var(--ink)]">Subscriber Insights</h2>
-      <div className="grid grid-cols-2 gap-3 mt-3 mb-4">
+      <h2 className="admin-section-title">Subscriber insights</h2>
+      <p className="admin-section-lede">Active subscriptions and recent opens.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
         <Stat label="Active subscribers" value={totalActive} />
         <Stat label="Opens (24h)" value={opened24h} />
       </div>
-      <div className="space-y-2">
+      <p className="picker-label mb-3">By team</p>
+      <div className="space-y-3">
         {byTeam.map((row) => (
-          <div key={row.team_id} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3 text-sm">
-            {(row.teams && `${row.teams.city} ${row.teams.name}`) || row.team_id}: {row.count}
+          <div key={row.team_id} className="admin-list-card flex items-center justify-between gap-4">
+            <span className="text-sm font-medium text-[var(--ink)]">
+              {(row.teams && `${row.teams.city} ${row.teams.name}`) || row.team_id}
+            </span>
+            <span className="admin-stat-value text-xl tabular-nums">{row.count}</span>
           </div>
         ))}
       </div>
@@ -51,9 +56,9 @@ export default function SubscriberInsightsView() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
-      <p className="text-xs text-[var(--ink-muted)]">{label}</p>
-      <p className="text-xl font-bold text-[var(--ink)]">{value}</p>
+    <div className="admin-stat-card">
+      <p className="admin-stat-label">{label}</p>
+      <p className="admin-stat-value">{value}</p>
     </div>
   );
 }

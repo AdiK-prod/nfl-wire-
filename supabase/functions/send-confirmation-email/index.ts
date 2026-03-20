@@ -8,7 +8,7 @@ type Payload = {
 
 const resendApiKey = Deno.env.get("RESEND_API_KEY") ?? "";
 const fromAddress = Deno.env.get("RESEND_FROM") ?? "NFL Wire <news@nflwire.com>";
-const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://nflwire.com";
+const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://nfl-wire.vercel.app";
 
 async function handleRequest(req: Request): Promise<Response> {
   if (req.method !== "POST") {

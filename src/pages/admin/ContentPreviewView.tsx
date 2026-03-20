@@ -23,17 +23,19 @@ export default function ContentPreviewView() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-[var(--ink)]">Content Preview</h2>
-      <p className="text-sm text-[var(--ink-muted)] mb-3">Recent newsletter drafts and sent issues.</p>
-      <div className="space-y-2">
+      <h2 className="admin-section-title">Content preview</h2>
+      <p className="admin-section-lede">Recent newsletter drafts and sent issues.</p>
+      <div className="space-y-3">
         {rows.map((row) => (
-          <div key={row.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
-            <p className="font-medium text-[var(--ink)]">{row.subject_line}</p>
-            <p className="text-xs text-[var(--ink-muted)] mt-1">
-              {(row.teams && `${row.teams.city} ${row.teams.name}`) || 'Unknown team'} · {row.status} ·{' '}
+          <article key={row.id} className="admin-list-card">
+            <h3 className="admin-list-card-title">{row.subject_line}</h3>
+            <p className="admin-list-card-meta">
+              {(row.teams && `${row.teams.city} ${row.teams.name}`) || 'Unknown team'} ·{' '}
+              <span className="hero-chip inline align-middle">{row.status}</span>
+              {' · '}
               {new Date(row.created_at).toLocaleString()}
             </p>
-          </div>
+          </article>
         ))}
       </div>
     </div>

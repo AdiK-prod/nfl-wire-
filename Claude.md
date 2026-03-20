@@ -45,6 +45,9 @@ First active team: Seattle Seahawks (#002244 / #69BE28 / #A5ACAF).
 - Phase 5: Admin Dashboard
 - ⚠️ Task 9 not in completed list — verify status with: task-master show 9
 
+## Production app URL
+- https://nfl-wire.vercel.app
+
 ## Stack
 - React + Vite + Tailwind CSS (frontend)
 - Supabase (database + edge functions + auth)

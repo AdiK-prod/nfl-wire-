@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://nflwire.com";
+const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://nfl-wire.vercel.app";
 
 type Feedback = "thumbs_up" | "thumbs_down";
 

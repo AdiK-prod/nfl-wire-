@@ -39,59 +39,70 @@ export default function AdminDashboard() {
 
   const nav = useMemo(
     () => [
-      { to: '/admin/dashboard/sources', label: 'Source Queue' },
-      { to: '/admin/dashboard/content', label: 'Content Preview' },
-      { to: '/admin/dashboard/subscribers', label: 'Subscriber Insights' },
-      { to: '/admin/dashboard/logs', label: 'Validation Logs' },
+      { to: '/admin/dashboard/sources', label: 'Source queue' },
+      { to: '/admin/dashboard/content', label: 'Content preview' },
+      { to: '/admin/dashboard/subscribers', label: 'Subscribers' },
+      { to: '/admin/dashboard/logs', label: 'Validation logs' },
     ],
     [],
   );
 
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <header className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-4 flex items-center justify-between">
+    <div className="admin-root">
+      <div className="admin-glow" aria-hidden />
+      <div className="admin-shell">
+        <header className="admin-nav fade-up" style={{ animationDelay: '0ms' }}>
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--ink-muted)]">NFL Wire Admin</p>
-            <h1 className="text-xl font-bold text-[var(--ink)]">Operations Dashboard</h1>
+            <Link to="/" className="landing-logo block hover:opacity-80 transition-opacity">
+              NFL WIRE
+            </Link>
+            <p className="mt-1 text-xs tracking-[0.2em] uppercase text-[var(--ink-muted)]">Operations</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--ink-muted)]">{user?.email}</span>
-            <button
-              type="button"
-              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm"
-              onClick={() => signOut()}
-            >
+          <div className="admin-nav-actions">
+            <span className="admin-user-email hidden sm:inline" title={user?.email ?? ''}>
+              {user?.email}
+            </span>
+            <button type="button" className="admin-btn-secondary" onClick={() => signOut()}>
               Sign out
             </button>
-            <Link to="/" className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm">
-              Site
+            <Link to="/" className="admin-btn-secondary">
+              Subscriber site
             </Link>
           </div>
         </header>
 
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-          <StatCard label="Pending sources" value={stats.pendingSources} />
-          <StatCard label="Flagged sources" value={stats.flaggedSources} />
-          <StatCard label="Active subscribers" value={stats.activeSubscribers} />
-          <StatCard label="Newsletters sent" value={stats.newslettersSent} />
+        <section className="fade-up" style={{ animationDelay: '60ms' }}>
+          <p className="hero-eyebrow mb-3">
+            <span className="eyebrow-dot" />
+            AT A GLANCE
+          </p>
+          <div className="admin-stat-grid">
+            <StatCard label="Pending sources" value={stats.pendingSources} />
+            <StatCard label="Flagged sources" value={stats.flaggedSources} />
+            <StatCard label="Active subscribers" value={stats.activeSubscribers} />
+            <StatCard label="Newsletters sent" value={stats.newslettersSent} />
+          </div>
         </section>
 
-        <nav className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 flex flex-wrap gap-2">
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `rounded-md px-3 py-2 text-sm ${isActive ? 'bg-[var(--ink)] text-white' : 'text-[var(--ink-mid)]'}`
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
+        <nav
+          className="admin-nav-tabs mt-8 fade-up"
+          style={{ animationDelay: '100ms' }}
+          aria-label="Admin sections"
+        >
+          <div className="tab-switcher">
+            {nav.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) => `tab-button ${isActive ? 'active' : ''}`}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
         </nav>
 
-        <main className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+        <main className="admin-main admin-panel mt-5 fade-up" style={{ animationDelay: '140ms' }}>
           <Outlet />
         </main>
       </div>
@@ -101,9 +112,9 @@ export default function AdminDashboard() {
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
-      <p className="text-xs text-[var(--ink-muted)]">{label}</p>
-      <p className="text-xl font-bold text-[var(--ink)]">{value}</p>
+    <div className="admin-stat-card">
+      <p className="admin-stat-label">{label}</p>
+      <p className="admin-stat-value">{value}</p>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 
 export default function AdminLogin() {
@@ -31,31 +31,69 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-        <p className="text-xs tracking-[0.22em] uppercase text-[var(--ink-muted)]">NFL Wire Admin</p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--ink)]">Sign in</h1>
-        <p className="mt-2 text-sm text-[var(--ink-muted)]">
-          Use your admin email to receive a secure magic-link login.
+    <div className="admin-root">
+      <div className="admin-glow" aria-hidden />
+      <div className="admin-shell admin-shell-narrow">
+        <nav className="landing-nav fade-up" style={{ animationDelay: '0ms' }}>
+          <Link to="/" className="landing-logo hover:opacity-80 transition-opacity">
+            NFL WIRE
+          </Link>
+          <p className="landing-tag">Admin</p>
+        </nav>
+
+        <header className="fade-up" style={{ animationDelay: '80ms' }}>
+          <p className="hero-eyebrow">
+            <span className="eyebrow-dot" />
+            OPERATIONS
+          </p>
+          <h1 className="admin-login-title">Sign in</h1>
+          <p className="admin-login-lede">
+            Use your admin email to receive a secure magic link. You’ll be redirected to the dashboard after
+            you open the link.
+          </p>
+        </header>
+
+        <div className="fade-up" style={{ animationDelay: '140ms' }}>
+          <form className="admin-panel" onSubmit={onSubmit}>
+            <div className="signup-head">
+              <div>
+                <h2 className="signup-title">
+                  Magic link <span>login</span>
+                </h2>
+                <p className="signup-description">No password — we email you a one-time link.</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+                className="admin-form-input"
+              />
+              {error && (
+                <p className="form-help error" role="alert">
+                  {error}
+                </p>
+              )}
+              {sent && (
+                <p className="form-help text-[var(--ink-muted)]">
+                  Check your inbox for the login link. It may take a minute to arrive.
+                </p>
+              )}
+              <button type="submit" disabled={submitting} className="admin-btn-primary w-full sm:w-auto">
+                {submitting ? 'Sending…' : 'Send magic link'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <p className="mt-8 text-center text-xs text-[var(--ink-faint)] fade-up" style={{ animationDelay: '200ms' }}>
+          <Link to="/" className="text-[var(--ink-muted)] hover:text-[var(--ink-mid)] underline-offset-4 hover:underline">
+            ← Back to subscriber site
+          </Link>
         </p>
-        <form className="mt-5 space-y-4" onSubmit={onSubmit}>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="admin@example.com"
-            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm"
-          />
-          {error && <p className="text-sm text-red-700">{error}</p>}
-          {sent && <p className="text-sm text-[var(--ink-muted)]">Check your inbox for the login link.</p>}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-lg bg-[var(--ink)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {submitting ? 'Sending...' : 'Send magic link'}
-          </button>
-        </form>
       </div>
     </div>
   );

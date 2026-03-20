@@ -17,7 +17,7 @@ const configs = {
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
     apiUrl: 'https://[prod-project].supabase.co/functions/v1',
-    appUrl: 'https://nflwire.com',
+    appUrl: 'https://nfl-wire.vercel.app',
     enableDebugLogs: false,
   },
 } as const;

@@ -24,17 +24,18 @@ export default function ValidationLogsView() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-[var(--ink)]">Validation Logs</h2>
-      <p className="text-sm text-[var(--ink-muted)] mb-3">Recent article validation outcomes and categories.</p>
-      <div className="space-y-2">
+      <h2 className="admin-section-title">Validation logs</h2>
+      <p className="admin-section-lede">Recent article validation outcomes and categories.</p>
+      <div className="space-y-3">
         {rows.map((row) => (
-          <div key={row.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
-            <p className="text-sm font-medium text-[var(--ink)]">{row.title}</p>
-            <p className="text-xs text-[var(--ink-muted)] mt-1">
-              {(row.teams && `${row.teams.city} ${row.teams.name}`) || 'Unknown team'} · {row.category ?? 'uncategorized'} ·{' '}
-              {row.relevance_confirmed ? 'confirmed' : 'not confirmed'} · {new Date(row.published_at).toLocaleString()}
+          <article key={row.id} className="admin-list-card">
+            <h3 className="admin-list-card-title">{row.title}</h3>
+            <p className="admin-list-card-meta">
+              {(row.teams && `${row.teams.city} ${row.teams.name}`) || 'Unknown team'} ·{' '}
+              {row.category ?? 'uncategorized'} · {row.relevance_confirmed ? 'confirmed' : 'not confirmed'} ·{' '}
+              {new Date(row.published_at).toLocaleString()}
             </p>
-          </div>
+          </article>
         ))}
       </div>
     </div>
