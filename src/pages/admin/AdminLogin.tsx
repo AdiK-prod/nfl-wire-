@@ -3,13 +3,15 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 
 export default function AdminLogin() {
-  const { user, isAdmin, signInWithEmail, loading } = useAuth();
+  const { user, isAdmin, signInWithEmail, signOut, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   if (!loading && user && isAdmin) return <Navigate to="/admin/dashboard" replace />;
+
+  const signedInNotAllowlisted = !loading && Boolean(user) && !isAdmin;
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -53,6 +55,26 @@ export default function AdminLogin() {
               you open the link.
             </p>
           </header>
+
+          {signedInNotAllowlisted && (
+            <div
+              className="admin-login-card mb-4 w-full max-w-[420px] mx-auto border-[var(--border)] bg-[var(--bg)]"
+              role="status"
+            >
+              <p className="m-0 text-sm text-[var(--ink-mid)]">
+                You’re signed in as <strong className="text-[var(--ink)]">{user?.email}</strong>, but this account
+                isn’t on the admin allowlist yet. Ask an owner to add your user in Supabase{' '}
+                <code className="text-xs">admin_users</code>, or sign out and try another email.
+              </p>
+              <button
+                type="button"
+                className="admin-btn-secondary mt-4 w-full sm:w-auto"
+                onClick={() => void signOut()}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
 
           <form className="admin-login-card" onSubmit={onSubmit}>
             <div className="admin-login-form">

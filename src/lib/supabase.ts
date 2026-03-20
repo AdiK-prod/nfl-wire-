@@ -10,5 +10,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    /** Required so magic-link tokens in URL hash/query are applied on first load */
+    detectSessionInUrl: true,
+  },
+});
 

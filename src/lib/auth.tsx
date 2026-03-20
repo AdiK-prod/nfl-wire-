@@ -25,6 +25,12 @@ async function checkAdmin(userId: string | null): Promise<boolean> {
   return Boolean(data);
 }
 
+async function applySession(nextSession: Session | null) {
+  const nextUser = nextSession?.user ?? null;
+  const admin = await checkAdmin(nextUser?.id ?? null);
+  return { session: nextSession, user: nextUser, isAdmin: admin };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -33,24 +39,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(async ({ data }) => {
+
+    // Register listener first so URL-based sessions (magic link) are not missed.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       if (!mounted) return;
-      setSession(data.session ?? null);
-      setUser(data.session?.user ?? null);
-      setIsAdmin(await checkAdmin(data.session?.user?.id ?? null));
+      const next = await applySession(nextSession);
+      setSession(next.session);
+      setUser(next.user);
+      setIsAdmin(next.isAdmin);
       setLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      setSession(nextSession ?? null);
-      setUser(nextSession?.user ?? null);
-      setIsAdmin(await checkAdmin(nextSession?.user?.id ?? null));
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!mounted) return;
+      const next = await applySession(data.session ?? null);
+      setSession(next.session);
+      setUser(next.user);
+      setIsAdmin(next.isAdmin);
       setLoading(false);
     });
 
     return () => {
       mounted = false;
-      listener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
