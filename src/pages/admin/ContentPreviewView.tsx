@@ -23,8 +23,10 @@ export default function ContentPreviewView() {
 
   return (
     <div>
-      <h2 className="admin-dash-page-title">Content preview</h2>
-      <p className="admin-dash-page-lede">Recent newsletter drafts and sent issues.</p>
+      <div className="admin-dash-outlet-heading-block">
+        <h2 className="admin-dash-page-title">Content preview</h2>
+        <p className="admin-dash-page-lede">Recent newsletter drafts and sent issues.</p>
+      </div>
       {rows.length === 0 ? (
         <p className="admin-dash-section-empty m-0">No newsletters yet.</p>
       ) : (

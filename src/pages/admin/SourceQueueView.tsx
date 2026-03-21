@@ -17,8 +17,10 @@ export default function SourceQueueView() {
 
   return (
     <div>
-      <h2 className="admin-dash-page-title">Source queue</h2>
-      <p className="admin-dash-page-lede">Review pending, flagged, and approved sources.</p>
+      <div className="admin-dash-outlet-heading-block">
+        <h2 className="admin-dash-page-title">Source queue</h2>
+        <p className="admin-dash-page-lede">Review pending, flagged, and approved sources.</p>
+      </div>
       {sources.length === 0 ? (
         <p className="admin-dash-section-empty m-0">No sources to show yet.</p>
       ) : (

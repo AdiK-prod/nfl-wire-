@@ -54,17 +54,25 @@ export default function AdminDashboard() {
           label: 'Pending sources',
           value: stats.pendingSources,
           emptyHint: 'No pending sources right now.',
+          variant: 'pending' as const,
         },
-        { label: 'Flagged sources', value: stats.flaggedSources, emptyHint: 'Nothing flagged.' },
+        {
+          label: 'Flagged sources',
+          value: stats.flaggedSources,
+          emptyHint: 'Nothing flagged.',
+          variant: 'flagged' as const,
+        },
         {
           label: 'Active subscribers',
           value: stats.activeSubscribers,
           emptyHint: 'No subscribers yet. Share your landing page to get started.',
+          variant: 'subscribers' as const,
         },
         {
           label: 'Newsletters sent',
           value: stats.newslettersSent,
           emptyHint: 'No sends recorded yet.',
+          variant: 'newsletters' as const,
         },
       ] as const,
     [stats],
@@ -101,7 +109,13 @@ export default function AdminDashboard() {
           </p>
           <div className="admin-dash-stat-grid">
             {topStats.map((s) => (
-              <DashStatCard key={s.label} label={s.label} value={s.value} emptyHint={s.emptyHint} />
+              <DashStatCard
+                key={s.label}
+                label={s.label}
+                value={s.value}
+                emptyHint={s.emptyHint}
+                variant={s.variant}
+              />
             ))}
           </div>
         </section>
@@ -136,16 +150,19 @@ function DashStatCard({
   label,
   value,
   emptyHint,
+  variant,
 }: {
   label: string;
   value: number;
   emptyHint?: string;
+  variant: 'pending' | 'flagged' | 'subscribers' | 'newsletters';
 }) {
   const showEmpty = value === 0 && emptyHint;
+  const flaggedHot = variant === 'flagged' && value > 0;
   return (
-    <div className="admin-dash-stat-card">
-      <p className="admin-dash-stat-label">{label}</p>
-      <p className="admin-dash-stat-value">{value}</p>
+    <div className={`admin-dash-stat-card admin-dash-stat-card--${variant}`}>
+      <p className={`admin-dash-stat-label${flaggedHot ? ' admin-dash-stat-label--alert' : ''}`}>{label}</p>
+      <p className={`admin-dash-stat-value${flaggedHot ? ' admin-dash-stat-value--pulse' : ''}`}>{value}</p>
       {showEmpty ? <p className="admin-dash-stat-empty">{emptyHint}</p> : null}
     </div>
   );

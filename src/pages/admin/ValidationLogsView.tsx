@@ -24,8 +24,10 @@ export default function ValidationLogsView() {
 
   return (
     <div>
-      <h2 className="admin-dash-page-title">Validation logs</h2>
-      <p className="admin-dash-page-lede">Recent article validation outcomes and categories.</p>
+      <div className="admin-dash-outlet-heading-block">
+        <h2 className="admin-dash-page-title">Validation logs</h2>
+        <p className="admin-dash-page-lede">Recent article validation outcomes and categories.</p>
+      </div>
       {rows.length === 0 ? (
         <p className="admin-dash-section-empty m-0">No articles logged yet.</p>
       ) : (

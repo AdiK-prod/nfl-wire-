@@ -222,7 +222,19 @@ export default function Home() {
           </div>
 
           <div className="picker-groups fade-up" style={{ animationDelay: '220ms' }}>
-            {!loading && !error && groupedTeams.map(([divisionLabel, divisionTeams]) => (
+            {!loading && !error && teams.length === 0 && (
+              <div className="error-box" role="status">
+                <p className="m-0 font-medium text-[var(--ink)]">No teams loaded</p>
+                <p className="mt-2 mb-0 text-sm text-[var(--ink-mid)]">
+                  The <code className="text-xs">teams</code> table is empty or not readable with the browser key.
+                  Run migrations and seed data on your Supabase project, and ensure RLS allows{' '}
+                  <code className="text-xs">SELECT</code> for <code className="text-xs">anon</code> on{' '}
+                  <code className="text-xs">public.teams</code> (see migration <code className="text-xs">0012_teams_public_select.sql</code>
+                  ).
+                </p>
+              </div>
+            )}
+            {!loading && !error && teams.length > 0 && groupedTeams.map(([divisionLabel, divisionTeams]) => (
               <section key={divisionLabel} className="division-group">
                 <p className="division-label">{divisionLabel}</p>
                 <div className="team-grid">
@@ -261,8 +273,10 @@ export default function Home() {
         </section>
 
         {loading && (
-          <div className="loading-grid" aria-busy="true">
-            {Array.from({ length: 8 }).map((_, i) => <div key={i} className="loading-card" />)}
+          <div className="loading-grid mt-4" aria-busy="true" aria-label="Loading teams">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="loading-card" />
+            ))}
           </div>
         )}
 
