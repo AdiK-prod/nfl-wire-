@@ -23,17 +23,44 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 type AdminCheckResult = { ok: boolean; queryError?: string };
 
+const ADMIN_CHECK_TIMEOUT_MS = 12_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise
+      .then((v) => {
+        clearTimeout(t);
+        resolve(v);
+      })
+      .catch((e) => {
+        clearTimeout(t);
+        reject(e);
+      });
+  });
+}
+
 async function checkAdmin(userId: string | null): Promise<AdminCheckResult> {
   if (!userId) return { ok: false };
-  const { data, error } = await supabase
-    .from('admin_users')
-    .select('id')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (error) {
-    return { ok: false, queryError: error.message };
+  try {
+    const result = await withTimeout(
+      supabase
+        .from('admin_users')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle(),
+      ADMIN_CHECK_TIMEOUT_MS,
+      'admin_users lookup',
+    );
+    const { data, error } = result;
+    if (error) {
+      return { ok: false, queryError: error.message };
+    }
+    return { ok: Boolean(data) };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, queryError: msg };
   }
-  return { ok: Boolean(data) };
 }
 
 async function applySession(nextSession: Session | null) {
@@ -93,7 +120,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       return { error: error.message };
     }
-    // Apply session immediately so the next request uses the JWT (avoids races with onAuthStateChange).
     const nextSession = data.session;
     if (!nextSession) {
       return { error: 'No session returned after sign-in.' };

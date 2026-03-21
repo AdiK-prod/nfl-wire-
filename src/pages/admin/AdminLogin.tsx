@@ -28,11 +28,16 @@ export default function AdminLogin() {
       setSubmitting(false);
       return;
     }
-    const result = await signInWithPassword(normalized, password);
-    if (result.error) {
-      setError(result.error);
+    try {
+      const result = await signInWithPassword(normalized, password);
+      if (result.error) {
+        setError(result.error);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sign-in failed');
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
 
   return (
