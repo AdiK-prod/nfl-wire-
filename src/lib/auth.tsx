@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
@@ -14,21 +21,30 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-async function checkAdmin(userId: string | null): Promise<boolean> {
-  if (!userId) return false;
+type AdminCheckResult = { ok: boolean; queryError?: string };
+
+async function checkAdmin(userId: string | null): Promise<AdminCheckResult> {
+  if (!userId) return { ok: false };
   const { data, error } = await supabase
     .from('admin_users')
     .select('id')
     .eq('user_id', userId)
     .maybeSingle();
-  if (error) return false;
-  return Boolean(data);
+  if (error) {
+    return { ok: false, queryError: error.message };
+  }
+  return { ok: Boolean(data) };
 }
 
 async function applySession(nextSession: Session | null) {
   const nextUser = nextSession?.user ?? null;
-  const admin = await checkAdmin(nextUser?.id ?? null);
-  return { session: nextSession, user: nextUser, isAdmin: admin };
+  const adminResult = await checkAdmin(nextUser?.id ?? null);
+  return {
+    session: nextSession,
+    user: nextUser,
+    isAdmin: adminResult.ok,
+    adminQueryError: adminResult.queryError,
+  };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -40,12 +56,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Register listener first so session updates (including password sign-in) apply immediately.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       if (!mounted) return;
       const next = await applySession(nextSession);
+      if (next.adminQueryError) {
+        console.warn('[auth] admin_users check failed:', next.adminQueryError);
+      }
       setSession(next.session);
       setUser(next.user);
       setIsAdmin(next.isAdmin);
@@ -55,6 +73,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void supabase.auth.getSession().then(async ({ data }) => {
       if (!mounted) return;
       const next = await applySession(data.session ?? null);
+      if (next.adminQueryError) {
+        console.warn('[auth] admin_users check failed:', next.adminQueryError);
+      }
       setSession(next.session);
       setUser(next.user);
       setIsAdmin(next.isAdmin);
@@ -67,24 +88,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const signInWithPassword = useCallback(async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      return { error: error.message };
+    }
+    // Apply session immediately so the next request uses the JWT (avoids races with onAuthStateChange).
+    const nextSession = data.session;
+    if (!nextSession) {
+      return { error: 'No session returned after sign-in.' };
+    }
+    const next = await applySession(nextSession);
+    if (next.adminQueryError) {
+      console.warn('[auth] admin_users check failed:', next.adminQueryError);
+    }
+    setSession(next.session);
+    setUser(next.user);
+    setIsAdmin(next.isAdmin);
+    setLoading(false);
+    return { error: null };
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+  }, []);
+
+  const refreshAdmin = useCallback(async () => {
+    const {
+      data: { session: s },
+    } = await supabase.auth.getSession();
+    const adminResult = await checkAdmin(s?.user?.id ?? null);
+    setIsAdmin(adminResult.ok);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       session,
       isAdmin,
       loading,
-      signInWithPassword: async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return { error: error?.message ?? null };
-      },
-      signOut: async () => {
-        await supabase.auth.signOut();
-      },
-      refreshAdmin: async () => {
-        setIsAdmin(await checkAdmin(user?.id ?? null));
-      },
+      signInWithPassword,
+      signOut,
+      refreshAdmin,
     }),
-    [user, session, isAdmin, loading],
+    [user, session, isAdmin, loading, signInWithPassword, signOut, refreshAdmin],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
