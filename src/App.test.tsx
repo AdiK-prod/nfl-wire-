@@ -18,7 +18,7 @@ const { mockSupabase } = vi.hoisted(() => {
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
-      signInWithOtp: vi.fn(() => Promise.resolve({ error: null })),
+      signInWithPassword: vi.fn(() => Promise.resolve({ error: null })),
       signOut: vi.fn(() => Promise.resolve()),
     },
     from: vi.fn((table: string) => {

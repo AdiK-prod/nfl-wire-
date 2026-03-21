@@ -1378,13 +1378,13 @@ a.admin-btn-primary {
 .admin-login-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .admin-login-input {
   box-sizing: border-box;
   width: 100%;
-  margin-top: 24px;
+  margin-top: 0;
   padding: 13px 16px;
   border: 1.5px solid var(--border);
   border-radius: 10px;

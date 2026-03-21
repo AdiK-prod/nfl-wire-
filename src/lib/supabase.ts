@@ -14,7 +14,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    /** Required so magic-link tokens in URL hash/query are applied on first load */
+    /** Apply auth tokens from URL when present (e.g. recovery links) */
     detectSessionInUrl: true,
   },
 });

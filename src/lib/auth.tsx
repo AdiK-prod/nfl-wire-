@@ -7,7 +7,7 @@ type AuthContextValue = {
   session: Session | null;
   isAdmin: boolean;
   loading: boolean;
-  signInWithEmail: (email: string) => Promise<{ error: string | null }>;
+  signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshAdmin: () => Promise<void>;
 };
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Register listener first so URL-based sessions (magic link) are not missed.
+    // Register listener first so session updates (including password sign-in) apply immediately.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
@@ -73,13 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       isAdmin,
       loading,
-      signInWithEmail: async (email: string) => {
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo: `${window.location.origin}/admin`,
-          },
-        });
+      signInWithPassword: async (email: string, password: string) => {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         return { error: error?.message ?? null };
       },
       signOut: async () => {

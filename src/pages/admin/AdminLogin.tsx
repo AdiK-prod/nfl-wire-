@@ -3,10 +3,10 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 
 export default function AdminLogin() {
-  const { user, isAdmin, signInWithEmail, signOut, loading } = useAuth();
+  const { user, isAdmin, signInWithPassword, signOut, loading } = useAuth();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   if (!loading && user && isAdmin) return <Navigate to="/admin/dashboard" replace />;
@@ -23,11 +23,14 @@ export default function AdminLogin() {
       setSubmitting(false);
       return;
     }
-    const result = await signInWithEmail(normalized);
+    if (!password) {
+      setError('Password is required');
+      setSubmitting(false);
+      return;
+    }
+    const result = await signInWithPassword(normalized, password);
     if (result.error) {
       setError(result.error);
-    } else {
-      setSent(true);
     }
     setSubmitting(false);
   };
@@ -51,8 +54,8 @@ export default function AdminLogin() {
             </p>
             <h1 className="admin-login-title">Sign in</h1>
             <p className="admin-login-lede">
-              Use your admin email to receive a secure magic link. You’ll be redirected to the dashboard after
-              you open the link.
+              Sign in with the admin email and password for your account. Access is limited to users listed in{' '}
+              <code className="text-xs">admin_users</code>.
             </p>
           </header>
 
@@ -64,7 +67,7 @@ export default function AdminLogin() {
               <p className="m-0 text-sm text-[var(--ink-mid)]">
                 You’re signed in as <strong className="text-[var(--ink)]">{user?.email}</strong>, but this account
                 isn’t on the admin allowlist yet. Ask an owner to add your user in Supabase{' '}
-                <code className="text-xs">admin_users</code>, or sign out and try another email.
+                <code className="text-xs">admin_users</code>, or sign out and try another account.
               </p>
               <button
                 type="button"
@@ -78,7 +81,11 @@ export default function AdminLogin() {
 
           <form className="admin-login-card" onSubmit={onSubmit}>
             <div className="admin-login-form">
+              <label htmlFor="admin-email" className="sr-only">
+                Email
+              </label>
               <input
+                id="admin-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -87,18 +94,26 @@ export default function AdminLogin() {
                 className="admin-login-input"
                 aria-label="Admin email"
               />
+              <label htmlFor="admin-password" className="sr-only">
+                Password
+              </label>
+              <input
+                id="admin-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                autoComplete="current-password"
+                className="admin-login-input"
+                aria-label="Password"
+              />
               {error && (
                 <p className="form-help error m-0" role="alert">
                   {error}
                 </p>
               )}
-              {sent && (
-                <p className="form-help text-[var(--ink-muted)] m-0">
-                  Check your inbox for the login link. It may take a minute to arrive.
-                </p>
-              )}
               <button type="submit" disabled={submitting} className="admin-login-submit">
-                {submitting ? 'Sending…' : 'Send magic link'}
+                {submitting ? 'Signing in…' : 'Sign in'}
               </button>
             </div>
           </form>

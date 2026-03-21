@@ -6,6 +6,15 @@ import type { Team } from '../types/database';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type ConferenceTab = 'ALL' | 'AFC' | 'NFC';
 
+function getFetchErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    const m = (err as { message: unknown }).message;
+    if (typeof m === 'string' && m.length) return m;
+  }
+  return 'Failed to load teams';
+}
+
 function isLight(hex: string): boolean {
   const value = hex.startsWith('#') ? hex : `#${hex}`;
   if (!/^#[0-9a-fA-F]{6}$/.test(value)) return false;
@@ -43,7 +52,7 @@ export default function Home() {
         if (e) throw e;
         setTeams(data ?? []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load teams');
+        setError(getFetchErrorMessage(err));
         setTeams([]);
       } finally {
         setLoading(false);
