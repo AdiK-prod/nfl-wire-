@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAnon } from '../lib/supabase';
 import type { Team } from '../types/database';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -42,7 +42,7 @@ export default function Home() {
     async function fetchTeams() {
       try {
         setError(null);
-        const { data, error: e } = await supabase
+        const { data, error: e } = await supabaseAnon
           .from('teams')
           .select('*')
           .order('conference')

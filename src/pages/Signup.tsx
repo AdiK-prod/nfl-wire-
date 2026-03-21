@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAnon } from '../lib/supabase';
 import type { Team } from '../types/database';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -24,7 +24,7 @@ export default function Signup() {
     }
     async function fetchTeam() {
       try {
-        const { data, error: e } = await supabase
+        const { data, error: e } = await supabaseAnon
           .from('teams')
           .select('*')
           .eq('slug', teamSlug)

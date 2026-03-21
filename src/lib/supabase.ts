@@ -19,3 +19,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+/**
+ * Same project/anon key, but no persisted session. Use for **public** reads (e.g. `teams`)
+ * so a broken/expired admin session on the main client cannot block or delay PostgREST
+ * (symptom: empty team grid + no `teams` request in Network).
+ */
+export const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+});
+
