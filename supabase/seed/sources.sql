@@ -40,8 +40,8 @@ select
   s.relevance_score
 from (
   values
-    ('https://www.chicagobears.com/news', 'Chicago Bears Official', 'team_specific', 'pending', 0),
-    ('https://bearswire.usatoday.com/', 'Bears Wire', 'team_specific', 'pending', 0)
+    ('https://www.chicagobears.com/rss/news', 'Chicago Bears Official RSS', 'team_specific', 'pending', 0),
+    ('https://www.espn.com/espn/rss/nfl/team?team=chi', 'ESPN Bears RSS', 'team_specific', 'pending', 0)
 ) as s(url, name, type, status, relevance_score)
 join public.teams t on t.slug = 'chicago-bears'
 on conflict (url) do nothing;
