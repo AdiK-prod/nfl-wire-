@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
@@ -79,22 +80,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const latestUserIdRef = useRef<string | null>(null);
+  const latestIsAdminRef = useRef(false);
+
+  const commitAuthState = useCallback(
+    (next: {
+      session: Session | null;
+      user: User | null;
+      isAdmin: boolean;
+      adminQueryError?: string;
+    }) => {
+      const sameUser = Boolean(next.user?.id) && next.user?.id === latestUserIdRef.current;
+      const keepPreviousAdmin = Boolean(next.user) && Boolean(next.adminQueryError) && sameUser;
+      const resolvedIsAdmin = keepPreviousAdmin ? latestIsAdminRef.current : next.isAdmin;
+
+      setSession(next.session);
+      setUser(next.user);
+      setIsAdmin(resolvedIsAdmin);
+      setLoading(false);
+
+      latestUserIdRef.current = next.user?.id ?? null;
+      latestIsAdminRef.current = resolvedIsAdmin;
+    },
+    [],
+  );
 
   useEffect(() => {
     let mounted = true;
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
       if (!mounted) return;
+      if (!nextSession) {
+        if (event === 'SIGNED_OUT') {
+          commitAuthState({
+            session: null,
+            user: null,
+            isAdmin: false,
+          });
+          return;
+        }
+
+        // Guard against transient auth races: do not immediately evict an active
+        // admin session on non-SIGNED_OUT events with a null payload.
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        if (!data.session) {
+          return;
+        }
+        nextSession = data.session;
+      }
       const next = await applySession(nextSession);
       if (next.adminQueryError) {
         console.warn('[auth] admin_users check failed:', next.adminQueryError);
       }
-      setSession(next.session);
-      setUser(next.user);
-      setIsAdmin(next.isAdmin);
-      setLoading(false);
+      commitAuthState(next);
     });
 
     void supabase.auth.getSession().then(async ({ data }) => {
@@ -103,17 +144,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (next.adminQueryError) {
         console.warn('[auth] admin_users check failed:', next.adminQueryError);
       }
-      setSession(next.session);
-      setUser(next.user);
-      setIsAdmin(next.isAdmin);
-      setLoading(false);
+      commitAuthState(next);
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [commitAuthState]);
 
   const signInWithPassword = useCallback(async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -128,12 +166,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (next.adminQueryError) {
       console.warn('[auth] admin_users check failed:', next.adminQueryError);
     }
-    setSession(next.session);
-    setUser(next.user);
-    setIsAdmin(next.isAdmin);
-    setLoading(false);
+    commitAuthState(next);
     return { error: null };
-  }, []);
+  }, [commitAuthState]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
