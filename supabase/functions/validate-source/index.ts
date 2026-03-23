@@ -55,7 +55,17 @@ interface RelevanceResult {
 }
 
 async function checkTeamRelevance(url: string, teamName: string): Promise<RelevanceResult> {
-  const response = await fetch(url);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12_000);
+  const response = await fetch(url, { signal: controller.signal });
+  clearTimeout(timeoutId);
+  if (!response.ok) {
+    return {
+      relevant: false,
+      confidence: 0,
+      reason: `Failed to fetch source content: HTTP ${response.status}`,
+    };
+  }
   const html = await response.text();
 
   const textContent = html
@@ -84,9 +94,19 @@ async function checkTeamRelevance(url: string, teamName: string): Promise<Releva
     `Content: ${textContent}`,
   ].join('\n');
 
-  const parsed = await callClaudeJSON<{ relevant: boolean; confidence: number }>([
-    { role: 'user', content: prompt },
-  ]);
+  let parsed: { relevant: boolean; confidence: number };
+  try {
+    parsed = await callClaudeJSON<{ relevant: boolean; confidence: number }>([
+      { role: 'user', content: prompt },
+    ]);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return {
+      relevant: false,
+      confidence: 0,
+      reason: `AI relevance check failed: ${msg}`,
+    };
+  }
 
   const confidence = parsed.confidence ?? 0;
   const relevant = !!parsed.relevant && confidence >= 60;
@@ -167,7 +187,7 @@ Deno.serve(async (req) => {
             url: source.url,
             teamName,
             confidence: relevance.confidence,
-            reason: relevance.reason,
+            reason: relevance.reason ?? 'Low team relevance confidence',
           },
         }).catch((err) => console.error('[validate-source] notifyAdmin failed', err));
       }
@@ -176,6 +196,7 @@ Deno.serve(async (req) => {
         JSON.stringify({
           status: finalStatus,
           confidence: relevance.confidence,
+          reason: relevance.reason,
         }),
         {
           status: 200,
