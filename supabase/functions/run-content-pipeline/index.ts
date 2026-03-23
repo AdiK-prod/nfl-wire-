@@ -60,6 +60,12 @@ interface FilteredArticle extends RawArticle {
   source?: SourceRow;
 }
 
+interface TeamFilterDiagnostics {
+  kept_count: number;
+  discarded_count: number;
+  discarded_samples: Array<{ title: string; url: string; source?: string }>;
+}
+
 type Category = 'transaction' | 'injury' | 'game_analysis' | 'rumor' | 'general';
 
 interface SummarizedArticle extends RawArticle {
@@ -209,24 +215,63 @@ async function fetchArticles(teamId: string): Promise<{
 }
 
 // --- Step 2: Filter by team relevance ---
+function buildTeamMatchTerms(teamName: string, teamAbbreviation?: string): string[] {
+  const terms = new Set<string>();
+  const cleaned = teamName.trim().toLowerCase();
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  const city = parts.slice(0, -1).join(' ').trim();
+  const mascot = parts[parts.length - 1] ?? cleaned;
+
+  if (cleaned) terms.add(cleaned);
+  if (city) terms.add(city);
+  if (mascot) terms.add(mascot);
+  if (teamAbbreviation) terms.add(teamAbbreviation.trim().toLowerCase());
+
+  const aliasMap: Record<string, string[]> = {
+    'chicago bears': ['chi', 'da bears'],
+    'seattle seahawks': ['sea', 'hawks'],
+    'san francisco 49ers': ['sf', 'niners', '49ers'],
+    'new england patriots': ['ne', 'pats'],
+    'green bay packers': ['gb'],
+    'kansas city chiefs': ['kc'],
+    'new york giants': ['nyg'],
+    'new york jets': ['nyj'],
+    'los angeles rams': ['lar'],
+    'los angeles chargers': ['lac', 'bolts'],
+    'tampa bay buccaneers': ['tb', 'bucs'],
+    'new orleans saints': ['no'],
+  };
+
+  (aliasMap[cleaned] ?? []).forEach((alias) => terms.add(alias.toLowerCase()));
+  return [...terms].filter((term) => term.length >= 2);
+}
+
 async function filterArticlesByTeam(
   articles: RawArticle[],
   teamName: string,
+  teamAbbreviation: string | undefined,
   sources: SourceRow[]
-): Promise<FilteredArticle[]> {
+): Promise<{ filtered: FilteredArticle[]; diagnostics: TeamFilterDiagnostics }> {
   const sourceMap = new Map(sources.map((s) => [s.id, s]));
   const filtered: FilteredArticle[] = [];
+  const discardedSamples: Array<{ title: string; url: string; source?: string }> = [];
   const globalDiscard = new Map<string, number>();
-
-  const lower = teamName.toLowerCase();
+  const terms = buildTeamMatchTerms(teamName, teamAbbreviation);
   for (const a of articles) {
     const text = `${a.title} ${a.raw_content}`.toLowerCase();
-    const mention = text.includes(lower) || text.includes(teamName.split(' ').pop()!.toLowerCase());
+    const mention = terms.some((term) => text.includes(term));
     const src = sourceMap.get(a.source_id);
     if (mention) {
       filtered.push({ ...a, relevance_confirmed: true, source: src });
     } else if (src?.team_id === null) {
       globalDiscard.set(a.source_id, (globalDiscard.get(a.source_id) ?? 0) + 1);
+    }
+    if (!mention && discardedSamples.length < 12) {
+      discardedSamples.push({
+        title: a.title,
+        url: a.original_url,
+        source: src?.name,
+      });
     }
   }
 
@@ -242,7 +287,14 @@ async function filterArticlesByTeam(
       }).catch((e) => console.error('[run-content-pipeline] notifyAdmin failed', e));
     }
   }
-  return filtered;
+  return {
+    filtered,
+    diagnostics: {
+      kept_count: filtered.length,
+      discarded_count: Math.max(articles.length - filtered.length, 0),
+      discarded_samples: discardedSamples,
+    },
+  };
 }
 
 // --- Step 3: Summarize + categorize (Claude) ---
@@ -317,6 +369,9 @@ async function generateStatOfTheDay(
   teamName: string,
   articleTitles: string[]
 ): Promise<{ stat: string; context: string }> {
+  if (articleTitles.length === 0) {
+    return { stat: '', context: "No verifiable stat from today's curated articles." };
+  }
   try {
     const context = articleTitles.slice(0, 15).join('; ');
     const parsed = await callClaudeJSON<{ stat: string; context: string }>(
@@ -379,6 +434,7 @@ Deno.serve(async (req) => {
     status: 'success' | 'failed';
     article_count?: number;
     sources_tested?: SourceFetchResult[];
+    team_filter_diagnostics?: TeamFilterDiagnostics;
     error?: string;
     leadStory?: unknown;
     quickHits?: unknown[];
@@ -388,7 +444,7 @@ Deno.serve(async (req) => {
 
   const { data: teams, error: teamsErr } = await supabase
     .from('teams')
-    .select('id, name, city')
+    .select('id, name, city, abbreviation')
     .eq('is_active', true);
 
   if (teamsErr || !teams?.length) {
@@ -403,7 +459,12 @@ Deno.serve(async (req) => {
     try {
       console.log(`[run-content-pipeline] Starting ${teamName}`);
       const { articles: rawArticles, sourcesUsed, sourceResults } = await fetchArticles(team.id);
-      const filtered = await filterArticlesByTeam(rawArticles, teamName, sourcesUsed);
+      const { filtered, diagnostics } = await filterArticlesByTeam(
+        rawArticles,
+        teamName,
+        (team as { abbreviation?: string }).abbreviation,
+        sourcesUsed,
+      );
       const summarized = await summarizeArticles(filtered, team.id, teamName);
       await insertArticles(summarized);
       const { leadStory, quickHits, injuries } = rankAndSelectArticles(summarized);
@@ -416,6 +477,7 @@ Deno.serve(async (req) => {
         status: 'success',
         article_count: summarized.length,
         sources_tested: sourceResults,
+        team_filter_diagnostics: diagnostics,
         leadStory: leadStory ? { title: leadStory.title, ai_summary: leadStory.ai_summary, original_url: leadStory.original_url } : null,
         quickHits: quickHits.map((a) => ({ title: a.title, ai_summary: a.ai_summary, original_url: a.original_url })),
         injuries: injuries.map((a) => ({ title: a.title, ai_summary: a.ai_summary })),
