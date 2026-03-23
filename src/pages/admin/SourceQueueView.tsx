@@ -147,7 +147,7 @@ export default function SourceQueueView() {
                         type="button"
                         className="admin-btn-secondary"
                         onClick={() => void onValidateSource(source.id)}
-                        disabled={Boolean(validatingId || removingId)}
+                        disabled={source.status === 'approved' || Boolean(validatingId || removingId)}
                       >
                         {validatingId === source.id ? 'Validating…' : 'Validate'}
                       </button>
