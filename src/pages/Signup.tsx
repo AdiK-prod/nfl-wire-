@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { supabase, supabaseAnon } from '../lib/supabase';
+import { ensureTeamActive } from '../lib/services/subscriptionService';
 import type { Team } from '../types/database';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -61,6 +62,8 @@ export default function Signup() {
 
     setSubmitting(true);
     try {
+      await ensureTeamActive(team.id);
+
       const { error: insertError } = await supabase.from('subscribers').insert({
         email: email.trim().toLowerCase(),
         team_id: team.id,

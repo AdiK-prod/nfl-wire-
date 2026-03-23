@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, supabaseAnon } from '../lib/supabase';
+import { ensureTeamsActive } from '../lib/services/subscriptionService';
 import type { Team } from '../types/database';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -134,6 +135,8 @@ export default function Home() {
     const normalizedEmail = email.trim().toLowerCase();
     setSubmitting(true);
     try {
+      await ensureTeamsActive(selectedTeams.map((team) => team.id));
+
       const added: string[] = [];
       const skippedDuplicate: string[] = [];
 
