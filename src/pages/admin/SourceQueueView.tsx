@@ -2,8 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Source } from '../../types/database';
 
+type SourceRow = Source & {
+  teams?: {
+    city: string;
+    name: string;
+    abbreviation: string;
+  } | null;
+};
+
 export default function SourceQueueView() {
-  const [sources, setSources] = useState<Source[]>([]);
+  const [sources, setSources] = useState<SourceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -15,7 +23,7 @@ export default function SourceQueueView() {
     setError(null);
     const { data, error: loadError } = await supabase
       .from('sources')
-      .select('*')
+      .select('*, teams(city, name, abbreviation)')
       .in('status', ['pending', 'flagged', 'approved'])
       .order('updated_at', { ascending: false })
       .limit(100);
@@ -27,7 +35,7 @@ export default function SourceQueueView() {
       return;
     }
 
-    setSources((data as Source[]) ?? []);
+    setSources((data as SourceRow[]) ?? []);
     setLoading(false);
   };
 
@@ -51,7 +59,7 @@ export default function SourceQueueView() {
 
       const { data: refreshedRow, error: rowError } = await supabase
         .from('sources')
-        .select('*')
+        .select('*, teams(city, name, abbreviation)')
         .eq('id', sourceId)
         .single();
 
@@ -59,12 +67,12 @@ export default function SourceQueueView() {
         throw new Error(rowError.message);
       }
 
-      setSources((prev) => prev.map((row) => (row.id === sourceId ? (refreshedRow as Source) : row)));
+      setSources((prev) => prev.map((row) => (row.id === sourceId ? (refreshedRow as SourceRow) : row)));
 
       const nextStatus =
         typeof (invokeData as { status?: unknown } | null)?.status === 'string'
           ? (invokeData as { status: string }).status
-          : (refreshedRow as Source).status;
+          : (refreshedRow as SourceRow).status;
 
       setNotice(`Validation completed for source (${nextStatus}).`);
     } catch (e) {
@@ -74,7 +82,7 @@ export default function SourceQueueView() {
     }
   };
 
-  const onRemoveSource = async (source: Source) => {
+  const onRemoveSource = async (source: SourceRow) => {
     setNotice(null);
     setError(null);
     const confirmed = window.confirm(
@@ -127,6 +135,7 @@ export default function SourceQueueView() {
               <tr>
                 <th>Name</th>
                 <th>Type</th>
+                <th>Team</th>
                 <th>Status</th>
                 <th>URL</th>
                 <th>Actions</th>
@@ -137,6 +146,11 @@ export default function SourceQueueView() {
                 <tr key={source.id}>
                   <td className="font-medium text-[var(--ink)]">{source.name}</td>
                   <td>{source.type}</td>
+                  <td>
+                    {source.team_id && source.teams
+                      ? `${source.teams.city} ${source.teams.name} (${source.teams.abbreviation})`
+                      : 'Global'}
+                  </td>
                   <td>
                     <span className="hero-chip inline-block">{source.status}</span>
                   </td>
