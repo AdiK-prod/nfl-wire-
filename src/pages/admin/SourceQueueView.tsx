@@ -41,7 +41,7 @@ export default function SourceQueueView() {
     setValidatingId(sourceId);
 
     try {
-      const { error: invokeError } = await supabase.functions.invoke('validate-source', {
+      const { data: invokeData, error: invokeError } = await supabase.functions.invoke('validate-source', {
         body: { source_id: sourceId },
       });
 
@@ -49,8 +49,24 @@ export default function SourceQueueView() {
         throw new Error(invokeError.message);
       }
 
-      setNotice('Source validation started. Refreshing queue…');
-      await loadSources();
+      const { data: refreshedRow, error: rowError } = await supabase
+        .from('sources')
+        .select('*')
+        .eq('id', sourceId)
+        .single();
+
+      if (rowError) {
+        throw new Error(rowError.message);
+      }
+
+      setSources((prev) => prev.map((row) => (row.id === sourceId ? (refreshedRow as Source) : row)));
+
+      const nextStatus =
+        typeof (invokeData as { status?: unknown } | null)?.status === 'string'
+          ? (invokeData as { status: string }).status
+          : (refreshedRow as Source).status;
+
+      setNotice(`Validation completed for source (${nextStatus}).`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to validate source');
     } finally {
