@@ -54,6 +54,65 @@ interface RelevanceResult {
   reason?: string;
 }
 
+function stripHtml(input: string): string {
+  return input
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractFeedItems(xml: string): Array<{ title: string; description: string }> {
+  const items: Array<{ title: string; description: string }> = [];
+  const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const block = match[1];
+    const titleMatch = block.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const descriptionMatch = block.match(/<description[^>]*>([\s\S]*?)<\/description>/i);
+    const title = (titleMatch?.[1] ?? '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1').trim();
+    const description = (descriptionMatch?.[1] ?? '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1').trim();
+    if (title) items.push({ title, description });
+  }
+  return items;
+}
+
+function buildTeamTerms(teamName: string): string[] {
+  const terms = new Set<string>();
+  const cleaned = teamName.toLowerCase().trim();
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  const city = parts.slice(0, -1).join(' ');
+  const mascot = parts[parts.length - 1] ?? cleaned;
+  if (cleaned) terms.add(cleaned);
+  if (city) terms.add(city);
+  if (mascot) terms.add(mascot);
+
+  const aliases: Record<string, string[]> = {
+    'chicago bears': ['da bears', 'chi'],
+    'seattle seahawks': ['hawks', 'sea'],
+    'san francisco 49ers': ['49ers', 'niners', 'sf'],
+    'new england patriots': ['pats', 'ne'],
+    'kansas city chiefs': ['kc'],
+    'green bay packers': ['gb'],
+    'new york giants': ['nyg'],
+    'new york jets': ['nyj'],
+  };
+  (aliases[cleaned] ?? []).forEach((alias) => terms.add(alias));
+  return [...terms].filter((t) => t.length >= 2);
+}
+
+function scoreTeamSpecificity(texts: string[], teamName: string): { ratio: number; hits: number; total: number } {
+  const terms = buildTeamTerms(teamName);
+  if (!texts.length) return { ratio: 0, hits: 0, total: 0 };
+  let hits = 0;
+  for (const text of texts) {
+    const lower = text.toLowerCase();
+    if (terms.some((term) => lower.includes(term))) hits += 1;
+  }
+  return { ratio: hits / texts.length, hits, total: texts.length };
+}
+
 async function checkTeamRelevance(url: string, teamName: string): Promise<RelevanceResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12_000);
@@ -66,15 +125,38 @@ async function checkTeamRelevance(url: string, teamName: string): Promise<Releva
       reason: `Failed to fetch source content: HTTP ${response.status}`,
     };
   }
-  const html = await response.text();
+  const body = await response.text();
+  const lowerBody = body.toLowerCase();
+  const looksLikeFeed = lowerBody.includes('<rss') || lowerBody.includes('<feed') || lowerBody.includes('<item>');
 
-  const textContent = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 4000);
+  // Deterministic feed-specific relevance check to prevent "global masquerading as team-specific".
+  if (looksLikeFeed) {
+    const feedItems = extractFeedItems(body).slice(0, 25);
+    const sampleTexts = feedItems.map((it) => `${it.title} ${it.description}`).filter(Boolean);
+    const specificity = scoreTeamSpecificity(sampleTexts, teamName);
+    if (specificity.total === 0) {
+      return {
+        relevant: false,
+        confidence: 0,
+        reason: 'Feed has no parseable items for team relevance check',
+      };
+    }
+    if (specificity.ratio < 0.3) {
+      return {
+        relevant: false,
+        confidence: Math.round(specificity.ratio * 100),
+        reason: `Feed appears non-team-specific (${specificity.hits}/${specificity.total} items mention ${teamName})`,
+      };
+    }
+    // Strong deterministic pass for team-specific feeds.
+    return {
+      relevant: true,
+      confidence: Math.min(100, Math.round(70 + specificity.ratio * 30)),
+      reason: `Feed appears team-specific (${specificity.hits}/${specificity.total} items match ${teamName})`,
+    };
+  }
+
+  const textContent = stripHtml(body).slice(0, 4000);
 
   const letters = textContent.match(/[a-zA-Z]/g) ?? [];
   const englishRatio = letters.length / Math.max(textContent.length, 1);
@@ -137,7 +219,7 @@ Deno.serve(async (req) => {
 
     const { data: source, error: sourceError } = await supabase
       .from('sources')
-      .select('id, url, team_id, teams(name)')
+      .select('id, url, type, team_id, teams(name)')
       .eq('id', source_id)
       .single();
 
@@ -164,7 +246,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (source.team_id) {
+    if (source.team_id || source.type === 'team_specific') {
       const teamName =
         // deno-lint-ignore no-explicit-any
         ((source as any).teams?.name as string | undefined) ?? 'the team';

@@ -13,6 +13,7 @@ import SourceQueueView from './pages/admin/SourceQueueView';
 import ContentPreviewView from './pages/admin/ContentPreviewView';
 import SubscriberInsightsView from './pages/admin/SubscriberInsightsView';
 import ValidationLogsView from './pages/admin/ValidationLogsView';
+import ArticleLogsView from './pages/admin/ArticleLogsView';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
             <Route path="content" element={<ContentPreviewView />} />
             <Route path="subscribers" element={<SubscriberInsightsView />} />
             <Route path="logs" element={<ValidationLogsView />} />
+            <Route path="article-logs" element={<ArticleLogsView />} />
           </Route>
         </Routes>
       </AuthProvider>

@@ -115,17 +115,23 @@ Runs daily at 6:00 AM, iterates across all active teams independently.
 - Query all teams where is_active = true
 - Run full pipeline per team — one team's failure does not block others
 
-**Step 1 — Fetch**
-- Query approved team-specific sources + global sources
-- Fetch articles published in last 24 hours
-- For each article: fetch not just the RSS headline and description, but the full article body content via URL scraping
-- Store raw_content as full article text — not just the RSS excerpt
-- Deduplicate by URL and title similarity
+**Step 1 — Fetch (Full Source Scan)**
+- Query ALL approved sources for the team: global + team-specific + user-submitted
+- Fetch ALL sources completely before applying any filtering — never stop fetching early
+- Per-source cap of 3 articles applied AFTER all sources are fetched, not during
+- For each article: fetch full article body via URL scraping — not just RSS headline/description
+- Minimum quality gate before scoring (not a content filter):
+  - Word count >= 200 (discard paywalled/boilerplate content silently)
+  - Reachability confirmed (article URL returns valid content)
+- Store raw_content as full article text
+- Deduplication happens AFTER scoring — not before — so each source gets a fair scoring shot
+- Log every fetched article to pipeline_runs table regardless of whether it passes later steps
 
 **Step 2 — Filter**
 - Confirm each article mentions the current team
 - Discard non-relevant articles from global sources
 - Flag low-relevance sources (> 50% discarded)
+- Do NOT deduplicate at this stage — identical stories from different sources must each be scored independently
 
 **Step 3 — Select & Score**
 Article selection is a deliberate AI-driven process, not just a category filter. The pipeline must ensure only high-quality, relevant articles make it into the newsletter.
@@ -151,7 +157,10 @@ Reply with JSON only: { relevance: int, significance: int, credibility: int, uni
 ```
 
 - Store all scores + selection_reasoning in the articles table
+- Store pipeline_run_id, fetch_date, source_id, team_id with every scored article
+- ALL articles are scored and logged regardless of whether they pass the threshold
 - Only articles with composite_score >= 65 advance to newsletter assembly
+- Deduplication happens here — after scoring — collapse same-event stories to the highest-scoring source only
 - Selection reasoning is stored permanently for admin review and pipeline improvement
 
 **Step 4 — Summarize**
@@ -257,6 +266,36 @@ Supabase Auth protected. Admin role only.
 - id, newsletter_id, subscriber_id
 - opened_at, feedback (thumbs_up / thumbs_down / null)
 
+### pipeline_runs
+- id (run identifier — groups all articles from one execution)
+- team_id (FK → teams)
+- run_at (timestamp of pipeline execution)
+- articles_fetched (total count fetched across all sources)
+- articles_passed_quality_gate (count passing word count + reachability)
+- articles_scored (count that received AI scoring)
+- articles_selected (count that passed composite_score threshold)
+- status (completed / failed / partial)
+- notes (any pipeline-level warnings or errors)
+
+### article_scores_log
+- id
+- pipeline_run_id (FK → pipeline_runs)
+- article_id (FK → articles)
+- team_id (FK → teams)
+- source_id (FK → sources)
+- source_name (denormalized for easy filtering)
+- fetch_date (date only — sufficient for filtering)
+- headline (article title)
+- original_url
+- word_count
+- relevance_score, significance_score, credibility_score, uniqueness_score, composite_score
+- selection_reasoning
+- passed_quality_gate (boolean — passed word count + reachability)
+- passed_threshold (boolean — composite_score >= threshold)
+- rejection_reason (below_threshold / duplicate / mid_game / paywall / not_relevant)
+- threshold_at_time (the threshold value used during this run — 65 standard, 55 low-volume)
+- summary_generated (boolean — was a summary actually produced)
+
 ---
 
 ## Seed Data
@@ -300,10 +339,15 @@ Populate teams table with all 32 NFL teams at initialization:
 ### Phase 3 — Content Pipeline
 - Supabase Edge Function: run-content-pipeline
 - Multi-team iteration
+- Full source scan — ALL sources fetched completely before any filtering
+- Per-source 3-article cap applied after full fetch, not during
 - Full article body scraping (not just RSS headline/description)
-- Article fetch, filter, deduplication
+- Pre-scoring quality gate: word count >= 200, reachability confirmed
+- ALL articles scored by AI before any deduplication
+- Deduplication after scoring — highest-scoring source wins per story
 - AI-driven article selection scoring (relevance, significance, credibility, uniqueness)
-- Selection reasoning stored per article
+- Selection reasoning + rejection reason stored per article
+- All scored articles logged to article_scores_log and pipeline_runs
 - Web search validation for unverified facts
 - Newsletter content generated strictly from fetched data — no AI fabrication
 - Claude API summarization + categorization (selected articles only)
@@ -387,6 +431,41 @@ Addresses AI summary quality issues that directly impact engagement and satisfac
 - When 👎 is received on a newsletter: log which articles were selected that day, their composite_scores, and their selection_reasoning
 - Weekly admin report: lowest-rated newsletters vs highest-rated — surface pattern differences in article selection
 - If a team's satisfaction rate drops below 60% for 3 consecutive issues: auto-flag for admin review
+
+### Phase 9 — Article Intelligence Log (Admin)
+New admin tab: "Article Logs" — provides full visibility into pipeline decision-making.
+
+**9.1 — Data Collection**
+- Every article scored by the pipeline is written to article_scores_log
+- Logged regardless of outcome — passed, failed, duplicate, paywall
+- pipeline_runs table tracks each execution with aggregate stats
+
+**9.2 — Admin View: Article Logs Tab**
+New tab added to admin dashboard alongside Source Queue, Content Preview, 
+Subscribers, Validation Logs.
+
+Display per log entry:
+- Article headline (linked to original_url)
+- Source name + source tier (global / team-specific / user-submitted)
+- Fetch date
+- Score breakdown: relevance / significance / credibility / uniqueness / composite (all visible)
+- Passed threshold: yes/no with color coding (green/red)
+- Rejection reason if applicable
+- Selection reasoning (expandable)
+
+**9.3 — Filters**
+- Team (dropdown)
+- Date (date picker)
+- Source (dropdown, populated from sources table)
+- Score range (slider or min/max input — e.g. show 55-65 near-misses)
+- Passed threshold: All / Passed / Rejected
+- Rejection reason: All / Below threshold / Duplicate / Paywall / Not relevant
+
+**9.4 — Pipeline Run Summary**
+Above the article list, show a summary card per pipeline run:
+- Run timestamp
+- Total fetched / passed quality gate / scored / selected
+- This gives immediate visibility into source coverage per run
 
 ### Phase 8 — Seasonal & Volume Adaptation
 Addresses content availability variation across the NFL calendar.

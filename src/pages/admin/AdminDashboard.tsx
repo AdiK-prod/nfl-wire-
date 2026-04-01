@@ -43,6 +43,7 @@ export default function AdminDashboard() {
       { to: '/admin/dashboard/content', label: 'Content preview' },
       { to: '/admin/dashboard/subscribers', label: 'Subscribers' },
       { to: '/admin/dashboard/logs', label: 'Validation logs' },
+      { to: '/admin/dashboard/article-logs', label: 'Article logs' },
     ],
     [],
   );
