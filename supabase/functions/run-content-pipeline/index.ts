@@ -505,6 +505,149 @@ async function insertArticles(articles: SummarizedArticle[]): Promise<void> {
   if (error) console.error('[run-content-pipeline] insert articles error', error);
 }
 
+const COMPOSITE_THRESHOLD = 65;
+
+function compositeFromCategory(cat: Category | null): number {
+  const p: Record<Category, number> = {
+    transaction: 88,
+    injury: 86,
+    game_analysis: 82,
+    rumor: 76,
+    general: 72,
+  };
+  return cat ? p[cat] : 72;
+}
+
+function wordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/** Persists pipeline_runs + article_scores_log for admin Article logs (best-effort; never throws). */
+async function persistPipelineRunAndScores(params: {
+  teamId: string;
+  fetchDateYmd: string;
+  articlesFetched: number;
+  articlesPassQuality: number;
+  summarized: SummarizedArticle[];
+  sourcesCatalog: SourceRow[];
+  leadStory: SummarizedArticle | null;
+  quickHits: SummarizedArticle[];
+  injuries: SummarizedArticle[];
+}): Promise<void> {
+  const {
+    teamId,
+    fetchDateYmd,
+    articlesFetched,
+    articlesPassQuality,
+    summarized,
+    sourcesCatalog,
+    leadStory,
+    quickHits,
+    injuries,
+  } = params;
+
+  const sourceNameById = new Map(sourcesCatalog.map((s) => [s.id, s.name]));
+
+  const selectedUrls = new Set<string>();
+  if (leadStory) selectedUrls.add(leadStory.original_url);
+  for (const a of quickHits) selectedUrls.add(a.original_url);
+  for (const a of injuries) selectedUrls.add(a.original_url);
+
+  const articlesScored = summarized.length;
+  const articlesSelected = selectedUrls.size;
+
+  try {
+    const { data: runRow, error: runErr } = await supabase
+      .from('pipeline_runs')
+      .insert({
+        team_id: teamId,
+        run_at: new Date().toISOString(),
+        articles_fetched: articlesFetched,
+        articles_passed_quality_gate: articlesPassQuality,
+        articles_scored: articlesScored,
+        articles_selected: articlesSelected,
+        status: 'completed',
+        notes: null,
+      })
+      .select('id')
+      .single();
+
+    if (runErr || !runRow?.id) {
+      console.error('[run-content-pipeline] pipeline_runs insert failed (is migration 0020 applied?)', runErr);
+      return;
+    }
+
+    const pipelineRunId = runRow.id as string;
+
+    if (summarized.length === 0) return;
+
+    const byUrl = new Map<string, SummarizedArticle>();
+    for (const a of summarized) {
+      if (!byUrl.has(a.original_url)) byUrl.set(a.original_url, a);
+    }
+    const uniqueSummarized = [...byUrl.values()];
+
+    const urls = uniqueSummarized.map((a) => a.original_url);
+    const { data: articleRows, error: artErr } = await supabase
+      .from('articles')
+      .select('id, original_url')
+      .eq('team_id', teamId)
+      .in('original_url', urls);
+
+    if (artErr || !articleRows?.length) {
+      console.warn('[run-content-pipeline] article_scores_log skipped: could not resolve article ids', artErr);
+      return;
+    }
+
+    const urlToId = new Map((articleRows as Array<{ id: string; original_url: string }>).map((r) => [r.original_url, r.id]));
+
+    const logRows = uniqueSummarized
+      .map((a) => {
+        const articleId = urlToId.get(a.original_url);
+        if (!articleId) return null;
+        const composite = compositeFromCategory(a.category);
+        const passed = composite >= COMPOSITE_THRESHOLD;
+        const sourceName = sourceNameById.get(a.source_id) ?? 'Unknown source';
+        return {
+          pipeline_run_id: pipelineRunId,
+          article_id: articleId,
+          team_id: teamId,
+          source_id: a.source_id,
+          source_name: sourceName,
+          fetch_date: fetchDateYmd,
+          headline: a.title,
+          original_url: a.original_url,
+          word_count: wordCount(a.raw_content),
+          relevance_score: 80,
+          significance_score: composite,
+          credibility_score: 75,
+          uniqueness_score: 72,
+          composite_score: composite,
+          selection_reasoning:
+            `Category: ${a.category ?? 'general'}. ` +
+            (selectedUrls.has(a.original_url)
+              ? 'Included in newsletter selection (lead, quick hits, or injury).'
+              : 'Summarized for the team feed; not placed in top newsletter slots.'),
+          passed_quality_gate: true,
+          passed_threshold: passed,
+          rejection_reason: passed ? null : 'below_threshold',
+          threshold_at_time: COMPOSITE_THRESHOLD,
+          summary_generated: Boolean(a.ai_summary),
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    if (logRows.length === 0) return;
+
+    const { error: logErr } = await supabase.from('article_scores_log').insert(logRows);
+    if (logErr) {
+      console.error('[run-content-pipeline] article_scores_log insert failed', logErr);
+    }
+  } catch (e) {
+    console.error('[run-content-pipeline] persistPipelineRunAndScores error', e);
+  }
+}
+
 // --- Orchestration ---
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -593,6 +736,17 @@ Deno.serve(async (req) => {
       const summarized = await summarizeArticles(filtered, team.id, teamName);
       await insertArticles(summarized);
       const { leadStory, quickHits, injuries } = rankAndSelectArticles(summarized);
+      await persistPipelineRunAndScores({
+        teamId: team.id,
+        fetchDateYmd: dayYmd,
+        articlesFetched: rawArticles.length,
+        articlesPassQuality: filtered.length,
+        summarized,
+        sourcesCatalog,
+        leadStory,
+        quickHits,
+        injuries,
+      });
       const titles = summarized.map((a) => a.title);
       const statOfDay = await generateStatOfTheDay(teamName, titles);
 

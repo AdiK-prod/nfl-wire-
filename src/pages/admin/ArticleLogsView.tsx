@@ -324,7 +324,10 @@ export default function ArticleLogsView() {
       <div className="admin-dash-outlet-heading-block">
         <h2 className="admin-dash-page-title">Article logs</h2>
         <p className="admin-dash-page-lede">
-          Read-only pipeline scoring and selection history — no mutations or triggers.
+          Read-only pipeline scoring and selection history — no mutations or triggers. Rows appear after each{' '}
+          <code className="text-xs">run-content-pipeline</code> execution; fetch date matches the
+          pipeline&apos;s UTC run day — if you see nothing for &quot;today&quot;, try yesterday or the day your cron
+          last ran (see date picker).
         </p>
       </div>
 
